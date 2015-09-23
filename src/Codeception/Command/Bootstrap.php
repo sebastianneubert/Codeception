@@ -1,5 +1,4 @@
 <?php
-
 namespace Codeception\Command;
 
 use Codeception\Lib\Generator\Helper;
@@ -151,7 +150,8 @@ class Bootstrap extends Command
 
         $str = Yaml::dump($basicConfig, 4);
         if ($this->namespace) {
-            $str = "namespace: {$this->namespace}\n" . $str;
+            $namespace = rtrim($this->namespace, '\\');
+            $str = "namespace: $namespace\n" . $str;
         }
         file_put_contents('codeception.yml', $str);
     }
@@ -239,7 +239,10 @@ EOF;
         @mkdir($this->dataDir);
         @mkdir($this->supportDir);
         @mkdir($this->envsDir);
-        file_put_contents($this->dataDir . '/dump.sql', '/* Replace this file with actual dump of your database */');
+        file_put_contents(
+            $this->dataDir . '/dump.sql',
+            '/* Replace this file with actual dump of your database */'
+        );
     }
 
 }

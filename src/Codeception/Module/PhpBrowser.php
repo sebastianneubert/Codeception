@@ -1,13 +1,12 @@
 <?php
-
 namespace Codeception\Module;
 
 use Codeception\Exception\ModuleException;
-use Codeception\Exception\TestRuntimeException;
 use Codeception\Lib\InnerBrowser;
 use Codeception\Lib\Interfaces\MultiSession;
 use Codeception\Lib\Interfaces\Remote;
 use Codeception\TestCase;
+use Codeception\Util\Uri;
 use GuzzleHttp\Client as GuzzleClient;
 
 /**
@@ -35,26 +34,31 @@ use GuzzleHttp\Client as GuzzleClient;
  * * cookies - ...
  * * auth - ...
  * * verify - ...
- * * .. those and other [Guzzle Request options](http://docs.guzzlephp.org/en/latest/clients.html#request-options)
+ * * .. those and other [Guzzle Request options](http://docs.guzzlephp.org/en/latest/request-options.html)
  *
  *
  * ### Example (`acceptance.suite.yml`)
  *
  *     modules:
  *        enabled:
- *           - PhpBrowser:
- *              url: 'http://localhost'
- *              auth: ['admin', '123345']
- *              curl:
- *                  CURLOPT_RETURNTRANSFER: true
+ *            - PhpBrowser:
+ *                url: 'http://localhost'
+ *                auth: ['admin', '123345']
+ *                curl:
+ *                    CURLOPT_RETURNTRANSFER: true
  *
- * ## Public Properties
- *
- * * guzzle - contains [Guzzle](http://guzzlephp.org/) client instance: `\GuzzleHttp\Client`
- * * client - Symfony BrowserKit instance.
  *
  * All SSL certification checks are disabled by default.
  * Use Guzzle request options to configure certifications and others.
+ *
+ * ## Public API
+ *
+ * Those properties and methods are expected to be used in Helper classes:
+ *
+ * Properties:
+ *
+ * * `guzzle` - contains [Guzzle](http://guzzlephp.org/) client instance: `\GuzzleHttp\Client`
+ * * `client` - Symfony BrowserKit instance.
  *
  */
 class PhpBrowser extends InnerBrowser implements Remote, MultiSession
@@ -76,7 +80,21 @@ class PhpBrowser extends InnerBrowser implements Remote, MultiSession
         'cookies' => true
     ];
 
-    protected $guzzleConfigFields = ['headers', 'auth', 'proxy', 'verify', 'cert', 'query', 'ssl_key', 'proxy', 'expect', 'version', 'cookies', 'timeout', 'connect_timeout'];
+    protected $guzzleConfigFields = [
+        'headers',
+        'auth',
+        'proxy',
+        'verify',
+        'cert',
+        'query',
+        'ssl_key',
+        'proxy',
+        'expect',
+        'version',
+        'cookies',
+        'timeout',
+        'connect_timeout'
+    ];
 
     /**
      * @var \Codeception\Lib\Connector\Guzzle6
@@ -109,6 +127,9 @@ class PhpBrowser extends InnerBrowser implements Remote, MultiSession
 
     public function _before(TestCase $test)
     {
+        if (!$this->client) {
+            $this->client = $this->guessGuzzleConnector();
+        }
         $this->_initializeSession();
     }
 
@@ -165,21 +186,9 @@ class PhpBrowser extends InnerBrowser implements Remote, MultiSession
         $this->client->setAuth($username, $password);
     }
 
-    public function amOnPage($page)
-    {
-        parent::amOnPage(ltrim($page, '/'));
-    }
-
     public function amOnUrl($url)
     {
-        $urlParts = parse_url($url);
-        if (!isset($urlParts['host']) or !isset($urlParts['scheme'])) {
-            throw new TestRuntimeException("Wrong URL passes, host and scheme not set");
-        }
-        $host = $urlParts['scheme'] . '://' . $urlParts['host'];
-        if (isset($urlParts['port'])) {
-            $host .= ':' . $urlParts['port'];
-        }
+        $host = Uri::retrieveHost($url);
         $this->_reconfigure(['url' => $host]);
         $page = substr($url, strlen($host));
         $this->debugSection('Host', $host);
@@ -255,8 +264,8 @@ class PhpBrowser extends InnerBrowser implements Remote, MultiSession
     public function _backupSession()
     {
         return [
-            'client'  => $this->client,
-            'guzzle'  => $this->guzzle,
+            'client' => $this->client,
+            'guzzle' => $this->guzzle,
             'crawler' => $this->crawler
         ];
     }

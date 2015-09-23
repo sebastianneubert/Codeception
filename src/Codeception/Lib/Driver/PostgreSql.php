@@ -1,6 +1,8 @@
 <?php
 namespace Codeception\Lib\Driver;
 
+use Codeception\Exception\ModuleException;
+
 class PostgreSql extends Db
 {
     protected $putline = false;
@@ -26,8 +28,11 @@ class PostgreSql extends Db
                 continue;
             }
 
-            if (strpos(trim($sqlLine), '$$') === 0) {
-                $dollarsOpen = !$dollarsOpen;
+            if (!preg_match('/\'.*\$\$.*\'/', $sqlLine)) { // Ignore $$ inside SQL standard string syntax such as in INSERT statements.
+                $pos = strpos($sqlLine, '$$');
+                if (($pos !== false) && ($pos >= 0)) {
+                    $dollarsOpen = !$dollarsOpen;
+                }
             }
 
             $query .= "\n" . rtrim($sqlLine);
@@ -82,11 +87,11 @@ class PostgreSql extends Db
     public function sqlQuery($query)
     {
         if (strpos(trim($query), 'COPY ') === 0) {
-            if (!extension_loaded(
-                'pgsql'
-            )
-            ) {
-                throw new \Codeception\Exception\ModuleException('\Codeception\Module\Db', "To run 'COPY' commands 'pgsql' extension should be installed");
+            if (!extension_loaded('pgsql')) {
+                throw new ModuleException(
+                    '\Codeception\Module\Db',
+                    "To run 'COPY' commands 'pgsql' extension should be installed"
+                );
             }
             $constring = str_replace(';', ' ', substr($this->dsn, 6));
             $constring .= ' user=' . $this->user;
@@ -97,24 +102,6 @@ class PostgreSql extends Db
         } else {
             $this->dbh->exec($query);
         }
-    }
-
-    public function select($column, $table, array &$criteria)
-    {
-        $where = $criteria ? "where %s" : '';
-        $query = 'select %s from "%s" ' . $where;
-        $params = [];
-        foreach ($criteria as $k => $v) {
-            if ($v === null) {
-                $params[] = "$k IS NULL ";
-                unset($criteria[$k]);
-            } else {
-                $params[] = "$k = ? ";
-            }
-        }
-        $params = implode('AND ', $params);
-
-        return sprintf($query, $column, $table, $params);
     }
 
     public function lastInsertId($table)
@@ -130,19 +117,36 @@ class PostgreSql extends Db
         $name = array_map(
             function ($data) {
                 return '"' . $data . '"';
-            }, $name
+            },
+            $name
         );
         return implode('.', $name);
     }
-    
+
     /**
      * @param string $tableName
      *
-     * @return string
+     * @return array[string]
      */
-    public function getPrimaryColumn($tableName)
+    public function getPrimaryKey($tableName)
     {
-        // @TODO: Implement this for PostgreSQL later
-        return 'id';
+        if (!isset($this->primaryKeys[$tableName])) {
+            $primaryKey = [];
+            $query = 'SELECT a.attname
+                FROM   pg_index i
+                JOIN   pg_attribute a ON a.attrelid = i.indrelid
+                                     AND a.attnum = ANY(i.indkey)
+                WHERE  i.indrelid = ?::regclass
+                AND    i.indisprimary';
+            $stmt = $this->executeQuery($query, [$tableName]);
+            $columns = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            foreach ($columns as $column) {
+                $primaryKey []= $column['attname'];
+            }
+            $this->primaryKeys[$tableName] = $primaryKey;
+        }
+
+        return $this->primaryKeys[$tableName];
     }
 }

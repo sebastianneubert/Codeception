@@ -3,10 +3,13 @@ namespace Codeception\Lib;
 
 use Codeception\Configuration;
 use Codeception\Exception\ElementNotFound;
+use Codeception\Exception\ExternalUrlException;
 use Codeception\Exception\MalformedLocatorException;
 use Codeception\Exception\ModuleException;
 use Codeception\Exception\TestRuntimeException;
+use Codeception\Lib\Interfaces\ElementLocator;
 use Codeception\Lib\Interfaces\PageSourceSaver;
+use Codeception\Lib\Interfaces\SupportsDomainRouting;
 use Codeception\Lib\Interfaces\Web;
 use Codeception\Module;
 use Codeception\PHPUnit\Constraint\Crawler as CrawlerConstraint;
@@ -14,16 +17,18 @@ use Codeception\PHPUnit\Constraint\CrawlerNot as CrawlerNotConstraint;
 use Codeception\PHPUnit\Constraint\Page as PageConstraint;
 use Codeception\TestCase;
 use Codeception\Util\Locator;
+use Codeception\Util\PropertyAccess;
 use Codeception\Util\Uri;
 use Symfony\Component\BrowserKit\Cookie;
+use Symfony\Component\DomCrawler\Link;
 use Symfony\Component\DomCrawler\Crawler;
-use Symfony\Component\DomCrawler\Form;
 use Symfony\Component\DomCrawler\Field\ChoiceFormField;
 use Symfony\Component\DomCrawler\Field\FileFormField;
 use Symfony\Component\DomCrawler\Field\InputFormField;
 use Symfony\Component\DomCrawler\Field\TextareaFormField;
+use Symfony\Component\DomCrawler\Form;
 
-class InnerBrowser extends Module implements Web, PageSourceSaver
+class InnerBrowser extends Module implements Web, PageSourceSaver, ElementLocator
 {
     /**
      * @var \Symfony\Component\DomCrawler\Crawler
@@ -61,6 +66,38 @@ class InnerBrowser extends Module implements Web, PageSourceSaver
     public function _conflicts()
     {
         return 'Codeception\Lib\Interfaces\Web';
+    }
+
+    public function _findElements($locator)
+    {
+        return $this->match($locator);
+    }
+
+    /**
+     * Send custom request to a backend using method, uri, parameters, etc.
+     * Use it in Helpers to create special request actions, like accessing API, sending complex forms, etc.
+     *
+     * ```php
+     * <?php
+     * // in Helper class
+     * public function createUserByApi($name) {
+     *     $this->getModule('{{MODULE_NAME}}')->_request('POST', '/api/v1/users', ['name' => $name]);
+     * }
+     * ?>
+     * ```
+     *
+     * @api
+     * @param $method
+     * @param $uri
+     * @param array $parameters
+     * @param array $files
+     * @param array $server
+     * @param null $content
+     * @return mixed|Crawler
+     */
+    public function _request($method, $uri, array $parameters = [],  array $files = [], array $server = [], $content = null)
+    {
+        return $this->clientRequest($method, $uri, $parameters, $files, $server, $content);
     }
 
     /**
@@ -102,7 +139,7 @@ class InnerBrowser extends Module implements Web, PageSourceSaver
 
     public function amOnPage($page)
     {
-        $this->crawler = $this->client->request('GET', $page);
+        $this->crawler = $this->clientRequest('GET', $page);
         $this->forms = [];
         $this->debugResponse();
     }
@@ -122,7 +159,7 @@ class InnerBrowser extends Module implements Web, PageSourceSaver
             $anchor = $this->getCrawler()->selectLink($link);
         }
         if (count($anchor)) {
-            $this->crawler = $this->getRunningClient()->click($anchor->first()->link());
+            $this->crawler = $this->clientClick($anchor->first()->link());
             $this->forms = [];
             $this->debugResponse();
             return;
@@ -156,7 +193,7 @@ class InnerBrowser extends Module implements Web, PageSourceSaver
             $tag = $node->nodeName;
             $type = $node->getAttribute('type');
             if ($tag === 'a') {
-                $this->crawler = $this->getRunningClient()->click($nodes->first()->link());
+                $this->crawler = $this->clientClick($nodes->first()->link());
                 $this->forms = [];
                 $this->debugResponse();
                 break;
@@ -233,12 +270,12 @@ class InnerBrowser extends Module implements Web, PageSourceSaver
 
     public function seeCurrentUrlEquals($uri)
     {
-        $this->assertEquals($uri, $this->_getCurrentUri());
+        $this->assertEquals(rtrim($uri, '/'), rtrim($this->_getCurrentUri(), '/'));
     }
 
     public function dontSeeCurrentUrlEquals($uri)
     {
-        $this->assertNotEquals($uri, $this->_getCurrentUri());
+        $this->assertNotEquals(rtrim($uri, '/'), rtrim($this->_getCurrentUri(), '/'));
     }
 
     public function seeCurrentUrlMatches($uri)
@@ -290,17 +327,17 @@ class InnerBrowser extends Module implements Web, PageSourceSaver
         $crawler = $this->getFieldsByLabelOrCss($field);
         $this->assertNot($this->proceedSeeInField($crawler, $value));
     }
-    
+
     public function seeInFormFields($formSelector, array $params)
     {
         $this->proceedSeeInFormFields($formSelector, $params, false);
     }
-    
+
     public function dontSeeInFormFields($formSelector, array $params)
     {
         $this->proceedSeeInFormFields($formSelector, $params, true);
     }
-    
+
     protected function proceedSeeInFormFields($formSelector, array $params, $assertNot)
     {
         $form = $this->match($formSelector)->first();
@@ -332,7 +369,7 @@ class InnerBrowser extends Module implements Web, PageSourceSaver
     /**
      * Returns an array of values for the field with the passed name.  Usually
      * the array consists of a single value.  Used by proceedSeeInField
-     * 
+     *
      * @param Form $form
      * @param string $fieldName
      * @return array
@@ -357,7 +394,7 @@ class InnerBrowser extends Module implements Web, PageSourceSaver
         }
         return $values;
     }
-    
+
     protected function proceedSeeInField(Crawler $fields, $value)
     {
         $form = $this->getFormFor($fields);
@@ -469,12 +506,13 @@ class InnerBrowser extends Module implements Web, PageSourceSaver
 
         $requestParams= $this->getFormPhpValues($requestParams);
 
-        $this->crawler = $this->client->request(
+        $this->crawler = $this->clientRequest(
             $form->getMethod(),
             $url,
             $requestParams,
             $form->getPhpFiles()
         );
+        $this->forms = [];
         $this->debugResponse();
     }
 
@@ -507,7 +545,7 @@ class InnerBrowser extends Module implements Web, PageSourceSaver
 
     /**
      * Returns the form action's absolute URL.
-     * 
+     *
      * @param \Symfony\Component\DomCrawler\Crawler $form
      * @return string
      * @throws \Codeception\Exception\TestRuntimeException if either the current
@@ -562,7 +600,7 @@ class InnerBrowser extends Module implements Web, PageSourceSaver
     /**
      * Returns the DomCrawler\Form object for the form pointed to by
      * $node or its closes form parent.
-     * 
+     *
      * @param \Symfony\Component\DomCrawler\Crawler $node
      * @return \Symfony\Component\DomCrawler\Form
      */
@@ -582,26 +620,32 @@ class InnerBrowser extends Module implements Web, PageSourceSaver
         }
         return $this->forms[$action];
     }
-    
+
     /**
      * Returns an array of name => value pairs for the passed form.
      *
-     * The function calls getPhpValues on the passed form object, then
-     * resets numeric array indexes for array field names without array
-     * keys specified (i.e. 'fieldname[]' but not 'fieldname[keyname]')
-     * as expected by setCheckboxBoolValues.
+     * For form fields containing a name ending in [], an array is
+     * created out of all field values with the given name.
      *
      * @param \Symfony\Component\DomCrawler\Form the form
      * @return array an array of name => value pairs
      */
     protected function getFormValuesFor(Form $form)
     {
-        $values = $form->getPhpValues();
+        $values = [];
         $fields = $form->all();
         foreach ($fields as $field) {
-            $name = $this->getSubmissionFormFieldName($field->getName());
-            if (!empty($values[$name]) && substr($field->getName(), -2) === '[]') {
-                $values[$name] = array_values($values[$name]);
+            if ($field->isDisabled() || !$field->hasValue() || $field instanceof FileFormField) {
+                continue;
+            }
+            $fieldName = $this->getSubmissionFormFieldName($field->getName());
+            if (substr($field->getName(), -2) === '[]') {
+                if (!isset($values[$fieldName])) {
+                    $values[$fieldName] = [];
+                }
+                $values[$fieldName][] = $field->getValue();
+            } else {
+                $values[$fieldName] = $field->getValue();
             }
         }
         return $values;
@@ -618,6 +662,7 @@ class InnerBrowser extends Module implements Web, PageSourceSaver
             : new InputFormField($input->getNode(0));
         $formField = $this->matchFormField($name, $form, $dynamicField);
         $formField->setValue($value);
+        $input->getNode(0)->nodeValue = htmlspecialchars($value);
     }
 
     /**
@@ -682,14 +727,36 @@ class InnerBrowser extends Module implements Web, PageSourceSaver
             return;
         }
 
-        $form[$fieldName]->select($this->matchOption($field, $option));
+        $dynamicField = new ChoiceFormField($field->getNode(0));
+        $formField = $this->matchFormField($fieldName, $form, $dynamicField);
+        $selValue = $this->matchOption($field, $option);
+
+        if (is_array($formField)) {
+            foreach ($formField as $field) {
+                $values = $field->availableOptionValues();
+                foreach ($values as $val) {
+                    if ($val === $option) {
+                        $field->select($selValue);
+                        return;
+                    }
+                }
+            }
+            return;
+        }
+
+        $formField->select($this->matchOption($field, $option));
     }
 
     protected function matchOption(Crawler $field, $option)
     {
-        $options = $field->filterXPath(sprintf('//option[text()=normalize-space("%s")]', $option));
+        $options = $field->filterXPath(sprintf('//option[text()=normalize-space("%s")]|//input[@type="radio" and @value=normalize-space("%s")]', $option, $option));
         if ($options->count()) {
-            if ($options->first()->attr('value')) {
+            if ($options->getNode(0)->tagName === 'option') {
+                $options->getNode(0)->setAttribute('selected', 'selected');
+            } else {
+                $options->getNode(0)->setAttribute('checked', 'checked');
+            }
+            if ($options->first()->attr('value') !== false) {
                 return $options->first()->attr('value');
             }
             return $options->first()->text();
@@ -721,6 +788,7 @@ class InnerBrowser extends Module implements Web, PageSourceSaver
         }
         // If the name is an array than we compare objects to find right checkbox
         $formField = $this->matchFormField($name, $form, new ChoiceFormField($field->getNode(0)));
+        $field->getNode(0)->setAttribute('checked', 'checked');
         if (!$formField instanceof ChoiceFormField) {
             throw new TestRuntimeException("Form field $name is not a checkable");
         }
@@ -802,14 +870,14 @@ class InnerBrowser extends Module implements Web, PageSourceSaver
      */
     public function sendAjaxRequest($method, $uri, $params = [])
     {
-        $this->client->request($method, $uri, $params, [], ['HTTP_X_REQUESTED_WITH' => 'XMLHttpRequest']);
+        $this->clientRequest($method, $uri, $params, [], ['HTTP_X_REQUESTED_WITH' => 'XMLHttpRequest']);
         $this->debugResponse();
     }
 
     protected function debugResponse()
     {
-        $this->debugSection('Response', $this->getResponseStatusCode());
         $this->debugSection('Page', $this->client->getHistory()->current()->getUri());
+        $this->debugSection('Response', $this->getResponseStatusCode());
         $this->debugSection('Cookies', $this->client->getInternalRequest()->getCookies());
         $this->debugSection('Headers', $this->client->getInternalResponse()->getHeaders());
     }
@@ -1140,13 +1208,21 @@ class InnerBrowser extends Module implements Web, PageSourceSaver
     protected function assertPageContains($needle, $message = '')
     {
         $constraint = new PageConstraint($needle, $this->_getCurrentUri());
-        $this->assertThat($this->getRunningClient()->getInternalResponse()->getContent(), $constraint, $message);
+        $this->assertThat(
+            html_entity_decode(strip_tags($this->getRunningClient()->getInternalResponse()->getContent()), ENT_QUOTES),
+            $constraint,
+            $message
+        );
     }
 
     protected function assertPageNotContains($needle, $message = '')
     {
         $constraint = new PageConstraint($needle, $this->_getCurrentUri());
-        $this->assertThatItsNot($this->getRunningClient()->getInternalResponse()->getContent(), $constraint, $message);
+        $this->assertThatItsNot(
+            html_entity_decode(strip_tags($this->getRunningClient()->getInternalResponse()->getContent()), ENT_QUOTES),
+            $constraint,
+            $message
+        );
     }
 
     /**
@@ -1209,5 +1285,65 @@ class InnerBrowser extends Module implements Web, PageSourceSaver
             }
         }
         return $requestParams;
+    }
+
+    protected function clientRequest($method, $uri, array $parameters = array(), array $files = array(), array $server = array(), $content = null, $changeHistory = true)
+    {
+        if ($this instanceof Framework) {
+            if ($method !== 'GET' && $content === null && !empty($parameters)) {
+                $content = http_build_query($parameters);
+            }
+
+            if (preg_match('#^(//|https?://(?!localhost))#', $uri) && (!$this instanceof SupportsDomainRouting)) {
+                throw new ExternalUrlException(get_class($this) . " can't open external URL: " . $uri);
+            }
+        }
+
+        if (!PropertyAccess::readPrivateProperty($this->client, 'followRedirects')) {
+            return $this->client->request($method, $uri, $parameters, $files, $server, $content, $changeHistory);
+        }
+        $maxRedirects = PropertyAccess::readPrivateProperty($this->client, 'maxRedirects', 'Symfony\Component\BrowserKit\Client');
+        $this->client->followRedirects(false);
+        $result = $this->client->request($method, $uri, $parameters, $files, $server, $content, $changeHistory);
+        return $this->redirectIfNecessary($result, $maxRedirects, 0);
+    }
+
+    /**
+     * @param $result
+     * @return mixed
+     */
+    protected function redirectIfNecessary($result, $maxRedirects, $redirectCount)
+    {
+        $locationHeader = $this->client->getInternalResponse()->getHeader('Location');
+        if ($locationHeader) {
+            $this->debugResponse();
+
+            if ($redirectCount == $maxRedirects) {
+                throw new \LogicException(sprintf('The maximum number (%d) of redirections was reached.', $maxRedirects));
+            }
+
+            $this->debugSection('Redirecting to', $locationHeader);
+
+            $result = $this->client->followRedirect();
+            return $this->redirectIfNecessary($result, $maxRedirects, $redirectCount + 1);
+        }
+        $this->client->followRedirects(true);
+        return $result;
+    }
+
+    /**
+     * Clicks on a given link.
+     *
+     * @param Link $link A Link instance
+     *
+     * @return Crawler
+     */
+    protected function clientClick(Link $link)
+    {
+        if ($link instanceof Form) {
+            return $this->proceedSubmitForm($link);
+        }
+
+        return $this->clientRequest($link->getMethod(), $link->getUri());
     }
 }

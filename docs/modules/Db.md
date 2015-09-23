@@ -1,6 +1,4 @@
-# Db Module
 
-**For additional reference, please review the [source](https://github.com/Codeception/Codeception/tree/2.0/src/Codeception/Module/Db.php)**
 
 
 Works with SQL database.
@@ -50,6 +48,7 @@ Check out drivers if you get problems loading dumps and cleaning databases.
 * dump - path to database dump.
 * populate: true - should the dump be loaded before test suite is started.
 * cleanup: true - should the dump be reloaded after each test
+* reconnect: false - should the module reconnect to database before each test
 
 ### Example
 
@@ -62,6 +61,23 @@ Check out drivers if you get problems loading dumps and cleaning databases.
              dump: 'tests/_data/dump.sql'
              populate: true
              cleanup: false
+             reconnect: true
+
+### SQL data dump
+
+ * Comments are permitted.
+ * The `dump.sql` may contain multiline statements.
+  * The delimiter, a semi-colon in this case, must be on the same line as the last statement:
+ 
+```sql
+-- Add a few contacts to the table.
+REPLACE INTO `Contacts` (`created`, `modified`, `status`, `contact`, `first`, `last`) VALUES
+(NOW(), NOW(), 1, 'Bob Ross', 'Bob', 'Ross'),
+(NOW(), NOW(), 1, 'Fred Flintstone', 'Fred', 'Flintstone');
+
+-- Remove existing orders for testing.
+DELETE FROM `Order`;
+```
 
 ## Public Properties
 * dbh - contains PDO connection.
@@ -153,4 +169,19 @@ Fails if no such user found.
  * `param`       $table
  * `param array` $criteria
 
-<p>&nbsp;</p><div class="alert alert-warning">Module reference is taken from the source code. <a href="https://github.com/Codeception/Codeception/tree/2.0/src/Codeception/Module/Db.php">Help us to improve documentation. Edit module reference</a></div>
+
+### seeNumRecords
+ 
+Asserts that found number of records in database
+
+``` php
+<?php
+$I->seeNumRecords(1, 'users', ['name' => 'davert'])
+?>
+```
+
+ * `param int`    $num      Expected number
+ * `param string` $table    Table name
+ * `param array`  $criteria Search criteria [Optional]
+
+<p>&nbsp;</p><div class="alert alert-warning">Module reference is taken from the source code. <a href="https://github.com/Codeception/Codeception/tree/2.1/src/Codeception/Module/Db.php">Help us to improve documentation. Edit module reference</a></div>

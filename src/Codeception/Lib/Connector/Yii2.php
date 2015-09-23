@@ -1,7 +1,7 @@
 <?php
-
 namespace Codeception\Lib\Connector;
 
+use Codeception\Lib\Interfaces\SupportsDomainRouting;
 use Codeception\Util\Debug;
 use Symfony\Component\BrowserKit\Client;
 use Symfony\Component\BrowserKit\Cookie;
@@ -11,7 +11,7 @@ use yii\base\ExitException;
 use yii\web\HttpException;
 use yii\web\Response as YiiResponse;
 
-class Yii2 extends Client
+class Yii2 extends Client implements SupportsDomainRouting
 {
     use Shared\PhpSuperGlobalsConverter;
 
@@ -19,6 +19,7 @@ class Yii2 extends Client
      * @var string application config file
      */
     public $configFile;
+    
     /**
      * @var array
      */
@@ -34,7 +35,6 @@ class Yii2 extends Client
         /** @var \yii\web\Application $app */
         return Yii::createObject($config);
     }
-
 
     /**
      *
@@ -128,7 +128,8 @@ class Yii2 extends Client
             /** @var \yii\web\Cookie $cookie */
             $value = $cookie->value;
             if ($cookie->expire != 1 && isset($validationKey)) {
-                $value = Yii::$app->security->hashData(serialize($value), $validationKey);
+                $data = version_compare(Yii::getVersion(), '2.0.2', '>') ? [$cookie->name, $cookie->value] : $cookie->value;
+                $value = Yii::$app->security->hashData(serialize($data), $validationKey);
             }
             $c = new Cookie($cookie->name, $value, $cookie->expire, $cookie->path, $cookie->domain, $cookie->secure, $cookie->httpOnly);
             $this->getCookieJar()->set($c);

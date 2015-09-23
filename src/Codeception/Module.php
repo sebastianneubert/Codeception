@@ -1,5 +1,4 @@
 <?php
-
 namespace Codeception;
 
 use Codeception\Lib\ModuleContainer;
@@ -7,12 +6,12 @@ use Codeception\Util\Shared\Asserts;
 
 abstract class Module
 {
+    use Asserts;
+    
     /**
      * @var ModuleContainer
      */
     protected $moduleContainer;
-
-    use Asserts;
 
     /**
      * By setting it to false module wan't inherit methods of parent class.
@@ -201,7 +200,7 @@ abstract class Module
     protected function scalarizeArray($array)
     {
         foreach ($array as $k => $v) {
-            if (!is_scalar($v)) {
+            if (!is_null($v) && !is_scalar($v)) {
                 $array[$k] = (is_array($v) || $v instanceof \ArrayAccess)
                     ? $this->scalarizeArray($v)
                     : (string)$v;

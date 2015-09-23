@@ -25,16 +25,14 @@ class GenerateScenarios extends Command
 
     protected function configure()
     {
-        $this->setDefinition(
-            [
-                new InputArgument('suite', InputArgument::REQUIRED, 'suite from which texts should be generated'),
-                new InputOption('config', 'c', InputOption::VALUE_REQUIRED, 'Use specified config instead of default'),
-                new InputOption('path', 'p', InputOption::VALUE_REQUIRED, 'Use specified path as destination instead of default'),
-                new InputOption('single-file', '', InputOption::VALUE_NONE, 'Render all scenarios to only one file'),
-                new InputOption('format', 'f', InputOption::VALUE_REQUIRED, 'Specify output format: html or text (default)', 'text'),
-                new InputOption('config', 'c', InputOption::VALUE_REQUIRED, 'Use specified config instead of default'),
-            ]
-        );
+        $this->setDefinition([
+            new InputArgument('suite', InputArgument::REQUIRED, 'suite from which texts should be generated'),
+            new InputOption('config', 'c', InputOption::VALUE_REQUIRED, 'Use specified config instead of default'),
+            new InputOption('path', 'p', InputOption::VALUE_REQUIRED, 'Use specified path as destination instead of default'),
+            new InputOption('single-file', '', InputOption::VALUE_NONE, 'Render all scenarios to only one file'),
+            new InputOption('format', 'f', InputOption::VALUE_REQUIRED, 'Specify output format: html or text (default)', 'text'),
+            new InputOption('config', 'c', InputOption::VALUE_REQUIRED, 'Use specified config instead of default'),
+        ]);
         parent::configure();
     }
 
@@ -84,6 +82,11 @@ class GenerateScenarios extends Command
             $feature = $test->getScenarioText($format);
 
             $name = $this->underscore(basename($test->getFileName(), '.php'));
+
+            // create separate file for each test in Cest
+            if (get_class($test) == 'Codeception\TestCase\Cest' && !$input->getOption('single-file')) {
+                $name .= '.' . $this->underscore($test->getTestMethod());
+            }
 
             if ($input->getOption('single-file')) {
                 $scenarios .= $feature;

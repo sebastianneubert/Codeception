@@ -6,7 +6,7 @@ use \Robo\Task\Development\GenerateMarkdownDoc as Doc;
 
 class RoboFile extends \Robo\Tasks
 {
-    const STABLE_BRANCH = '2.0';
+    const STABLE_BRANCH = '2.1';
 
     public function release()
     {
@@ -18,6 +18,7 @@ class RoboFile extends \Robo\Tasks
         $this->publishPhar();
         $this->publishGit();
         $this->versionBump();
+        $this->publishBase();
     }
 
     public function versionBump($version = '')
@@ -162,6 +163,15 @@ class RoboFile extends \Robo\Tasks
             $pharTask->addFile('src/'.$file->getRelativePathname(), $file->getRealPath());
         }
 
+        $finder = Finder::create()
+            ->ignoreVCS(true)
+            ->name('*.php')
+            ->in('ext');
+
+        foreach ($finder as $file) {
+            $pharTask->addFile('ext/'.$file->getRelativePathname(), $file->getRealPath());
+        }
+
         $finder = Finder::create()->files()
             ->ignoreVCS(true)
             ->name('*.php')
@@ -214,6 +224,7 @@ class RoboFile extends \Robo\Tasks
         $this->buildDocsModules();
         $this->buildDocsUtils();
         $this->buildDocsCommands();
+        $this->buildDocsExtensions();
     }
 
     public function buildDocsModules()
@@ -224,27 +235,42 @@ class RoboFile extends \Robo\Tasks
 
         foreach ($modules as $module) {
             $moduleName = basename(substr($module, 0, -4));
-            $className = '\Codeception\Module\\' . $moduleName;
+            $className = 'Codeception\Module\\' . $moduleName;
             $source = "https://github.com/Codeception/Codeception/tree/".self::STABLE_BRANCH."/src/Codeception/Module/$moduleName.php";
 
             $this->taskGenDoc('docs/modules/' . $moduleName . '.md')
                 ->docClass($className)
-                ->prepend("# $moduleName Module\n\n**For additional reference, please review the [source]($source)**")
                 ->append('<p>&nbsp;</p><div class="alert alert-warning">Module reference is taken from the source code. <a href="'.$source.'">Help us to improve documentation. Edit module reference</a></div>')
                 ->processClassSignature(false)
                 ->processProperty(false)
-                ->filterMethods(function(\ReflectionMethod $method) {
+                ->filterMethods(function(\ReflectionMethod $method) use ($className) {
                     if ($method->isConstructor() or $method->isDestructor()) return false;
                     if (!$method->isPublic()) return false;
-                    if (strpos($method->name, '_') === 0) return false;
+                    if (strpos($method->name, '_') === 0) {
+                        $doc = $method->getDocComment();
+                        try {
+                            $doc = $doc . $method->getPrototype()->getDocComment();
+                        } catch (\ReflectionException $e) {}
+                        if (strpos($doc, '@api') === false) {
+                            return false;
+                        }
+                    };
                     return true;
-                })->processMethod(function(\ReflectionMethod $method, $text) {
+                })->processMethod(function(\ReflectionMethod $method, $text) use ($className, $moduleName) {
                     $title = "\n### {$method->name}\n";
+                    if (strpos($method->name, '_') === 0) {
+                        $text = str_replace("@api\n", '', $text);
+                        $text = "\n*hidden API method, expected to be used from Helper classes*\n" . $text;
+                        $text = str_replace("{{MODULE_NAME}}", $moduleName, $text);
+                    };
+
                     if (!trim($text)) return $title."__not documented__\n";
-                    $text = str_replace(array('@since'), array(' * available since version'), $text);
-                    $text = preg_replace('~@throws(.*?)~', '', $text);
+                    $text = str_replace(['@since'], [' * available since version'], $text);
+                    $text = preg_replace('~@throws(.*?)$~', '', $text);
+                    $text = preg_replace('~@part(.*?)$~', '* Part: **$1**', $text);
                     $text = str_replace("@return mixed\n", '', $text);
-                    $text = str_replace(array("\n @"), array("\n * "), $text);
+                    $text = preg_replace('~@return (.*?)$~', ' * `return` $1', $text);
+                    $text = str_replace(["\n @"], ["\n * "], $text);
                     return $title . $text;
                 })->processMethodSignature(false)
                 ->reorderMethods('ksort')
@@ -295,6 +321,26 @@ class RoboFile extends \Robo\Tasks
             ->filterMethods(function(ReflectionMethod $r) { return false; })
             ->run();
 
+    }
+
+    public function buildDocsExtensions()
+    {
+        $this->say('Extensions');
+
+        $extensions = Finder::create()->files()->sortByName()->name('*.php')->in(__DIR__ . '/ext');
+
+        $extGenerator= $this->taskGenDoc(__DIR__.'/ext/README.md');
+        foreach ($extensions as $command) {
+            $commandName = basename(substr($command, 0, -4));
+            $className = '\Codeception\Extension\\' . $commandName;
+            $extGenerator->docClass($className);
+        }
+        $extGenerator
+            ->prepend("# Official Extensions\n")
+            ->processClassSignature(function ($r, $text) { return "## ".$r->getName();  })
+            ->filterMethods(function(ReflectionMethod $r) { return false; })
+            ->filterProperties(function($r) { return false; })
+            ->run();
     }
 
     /**
@@ -382,9 +428,9 @@ class RoboFile extends \Robo\Tasks
 
         $docs = Finder::create()->files('*.md')->sortByName()->in('docs');
 
-        $modules = array();
-        $api = array();
-        $reference = array();
+        $modules = [];
+        $api = [];
+        $reference = [];
         foreach ($docs as $doc) {
             $newfile = $doc->getFilename();
             $name = substr($doc->getBasename(),0,-3);
@@ -393,6 +439,20 @@ class RoboFile extends \Robo\Tasks
                 $newfile = 'docs/modules/' . $newfile;
                 $modules[$name] = '/docs/modules/' . $doc->getBasename();
                 $contents = str_replace('## ', '### ', $contents);
+                $buttons = ['source' => "https://github.com/Codeception/Codeception/blob/".self::STABLE_BRANCH."/src/Codeception/Module/$name.php"];
+                // building version switcher
+                foreach (['master', '2.1', '2.0', '1.8'] as $branch) {
+                    $buttons[$branch] = "https://github.com/Codeception/Codeception/blob/$branch/docs/modules/$name.md";
+                }
+                $buttonHtml = "\n\n".'<div class="btn-group" role="group" style="float: right" aria-label="...">';
+                foreach ($buttons as $link => $url) {
+                    if ($link == self::STABLE_BRANCH) {
+                        $link = "<strong>$link</strong>";
+                    }
+                    $buttonHtml.= '<a class="btn btn-default" href="'.$url.'">'.$link.'</a>';
+                }
+                $buttonHtml .= '</div>'."\n\n";
+                $contents = $buttonHtml . $contents;
             } elseif(strpos($doc->getPathname(),'docs'.DIRECTORY_SEPARATOR.'reference') !== false) {
                 $newfile = 'docs/reference/' . $newfile;
                 $reference[$name] = '/docs/reference/' . $doc->getBasename();
@@ -403,19 +463,20 @@ class RoboFile extends \Robo\Tasks
 
             copy($doc->getPathname(), 'package/site/' . $newfile);
 
-            $highlight_languages = implode('|', array('php', 'html', 'bash', 'yaml', 'json', 'xml', 'sql'));
+            $highlight_languages = implode('|', ['php', 'html', 'bash', 'yaml', 'json', 'xml', 'sql']);
             $contents = preg_replace("~```\s?($highlight_languages)\b(.*?)```~ms", "{% highlight $1 %}\n$2\n{% endhighlight %}", $contents);
             $contents = str_replace('{% highlight  %}','{% highlight yaml %}', $contents);
             $contents = preg_replace("~```\s?(.*?)```~ms", "{% highlight yaml %}\n$1\n{% endhighlight %}", $contents);
             // set default language in order not to leave unparsed code inside '```'
 
-            $matches = array();
+            $matches = [];
             $title = "";
             // Extracting page h1 to re-use in <title>
             if (preg_match('/^# (.*)$/m', $contents, $matches)) {
               $title = $matches[1];
             }
             $contents = "---\nlayout: doc\ntitle: ".($title!="" ? $title." - " : "")."Codeception - Documentation\n---\n\n".$contents;
+
             file_put_contents('package/site/' .$newfile, $contents);
         }
         chdir('package/site');
@@ -437,9 +498,10 @@ class RoboFile extends \Robo\Tasks
                 $prev_url = substr($prev_url, 0, -3);
                 $doc .= "\n* **Previous Chapter: [< $prev_title]($prev_url)**";
             }
-            $doc .= '<p>&nbsp;</p><div class="alert alert-warning">Docs are incomplete? Outdated? Or you just found a typo? <a href="https://github.com/Codeception/Codeception/tree/'.self::STABLE_BRANCH.'/docs">Help us to improve documentation. Edit it on GitHub</a></div>';
 
-            file_put_contents('docs/'.$filename, $doc);
+            $this->taskWriteToFile('docs/'.$filename)
+                ->text($doc)
+                ->run();
         }
 
 
@@ -451,6 +513,22 @@ class RoboFile extends \Robo\Tasks
             $guides_list .= '<li><a href="'.$url.'">'.$name.'</a></li>';
         }
         file_put_contents('_includes/guides.html', $guides_list);
+
+        $this->say("Building Guides index");
+        $this->taskWriteToFile('_includes/guides.html')
+            ->text($guides_list)
+            ->run();
+
+        $this->taskWriteToFile('docs/index.html')
+            ->line('---')
+            ->line('layout: doc')
+            ->line('title: Codeception Documentation')
+            ->line('---')
+            ->line('')
+            ->line("<h1>Codeception Documentation Guides</h1>")
+            ->line('')
+            ->text($guides_list)
+            ->run();
 
         /**
          * Align modules in two columns like this:
@@ -479,6 +557,11 @@ class RoboFile extends \Robo\Tasks
             $reference_list .= '<li><a href="'.$url.'">'.$name.'</a></li>';
         }
         file_put_contents('_includes/reference.html', $reference_list);
+
+        $this->say("Writing extensions docs");
+        $this->taskWriteToFile('_includes/extensions.md')
+            ->textFromFile(__DIR__.'/ext/README.md')
+            ->run();
 
         $this->publishSite();
         $this->taskExec('git add')->args('.')->run();
@@ -518,8 +601,6 @@ class RoboFile extends \Robo\Tasks
     {
         $this->taskCleanDir([
             'tests/log',
-            'tests/data/claypit/tests/_output',
-            'tests/data/claypit/tests/_log',
             'tests/data/claypit/tests/_output',
             'tests/data/included/_log',
             'tests/data/included/jazz/tests/_log',
@@ -566,6 +647,59 @@ class RoboFile extends \Robo\Tasks
         $this->taskDeleteDir('site')->run();
         chdir('..');
         $this->say("Site build succesfully");
+    }
+
+    /**
+     * Publishes Codeception base
+     * @param null $branch
+     * @param null $tag
+     */
+    public function publishBase($branch = null, $tag = null)
+    {
+        if (!$branch) $branch = self::STABLE_BRANCH;
+        $this->say("Updating Codeception Base distribution");
+
+        $tempBranch = "tmp".uniqid();
+
+        $this->taskGitStack()
+            ->checkout("-b $tempBranch")
+            ->run();
+
+        $this->taskReplaceInFile('composer.json')
+            ->from('"codeception/codeception"')
+            ->to('"codeception/base"')
+            ->run();
+
+        $this->taskReplaceInFile('composer.json')
+            ->regex('~^\s+"facebook\/webdriver".*$~m')
+            ->to('')
+            ->run();
+
+        $this->taskReplaceInFile('composer.json')
+            ->regex('~^\s+"guzzlehttp\/guzzle".*$~m')
+            ->to('')
+            ->run();
+
+        $this->taskComposerUpdate()->run();
+        $this->taskGitStack()
+            ->add('composer*')
+            ->commit('auto-update')
+            ->exec("push -f base $tempBranch:$branch")
+            ->run();
+
+        if ($tag) {
+            $this->taskGitStack()
+                ->exec("tag -d $tag")
+                ->exec("push base :refs/tags/$tag")
+                ->exec("tag $tag")
+                ->push('base', $tag)
+                ->run();
+        }
+
+        $this->taskGitStack()
+            ->checkout($branch)
+            ->exec("branch -D $tempBranch")
+            ->run();
     }
 
 } 

@@ -1,5 +1,4 @@
 <?php
-
 namespace Codeception\Util;
 
 class Stub
@@ -14,7 +13,7 @@ class Stub
      * ``` php
      * <?php
      * Stub::make('User');
-     * Stub::make('User', array('name' => 'davert));
+     * Stub::make('User', array('name' => 'davert'));
      * ?>
      * ```
      *
@@ -22,7 +21,7 @@ class Stub
      *
      * ``` php
      * <?php
-     * Stub::make(new User, array('name' => 'davert));
+     * Stub::make(new User, array('name' => 'davert'));
      * ?>
      * ```
      *
@@ -35,12 +34,12 @@ class Stub
      * ?>
      * ```
      *
-     * @param                                  $class - A class to be mocked
+     * @param mixed $class - A class to be mocked
      * @param array $params - properties and methods to set
      * @param bool|\PHPUnit_Framework_TestCase $testCase
      *
      * @return object - mock
-     * @throws \RuntimeException when class not exists
+     * @throws \RuntimeException when class does not exist
      */
     public static function make($class, $params = [], $testCase = false)
     {
@@ -82,7 +81,7 @@ class Stub
     /**
      * Creates $num instances of class through `Stub::make`.
      *
-     * @param       $class
+     * @param mixed $class
      * @param int $num
      * @param array $params
      *
@@ -128,8 +127,8 @@ class Stub
      * ?>
      * ```
      *
-     * @param                                  $class
-     * @param                                  $method
+     * @param mixed $class
+     * @param string $method
      * @param array $params
      * @param bool|\PHPUnit_Framework_TestCase $testCase
      *
@@ -179,7 +178,7 @@ class Stub
      * ``` php
      * <?php
      * Stub::makeEmpty('User');
-     * Stub::makeEmpty('User', array('name' => 'davert));
+     * Stub::makeEmpty('User', array('name' => 'davert'));
      * ?>
      * ```
      *
@@ -187,7 +186,7 @@ class Stub
      *
      * ``` php
      * <?php
-     * Stub::makeEmpty(new User, array('name' => 'davert));
+     * Stub::makeEmpty(new User, array('name' => 'davert'));
      * ?>
      * ```
      *
@@ -200,7 +199,7 @@ class Stub
      * ?>
      * ```
      *
-     * @param                                 $class
+     * @param mixed $class
      * @param array $params
      * @param bool|\PHPUnit_Framework_TestCase $testCase
      *
@@ -249,7 +248,7 @@ class Stub
      * ``` php
      * <?php
      * Stub::construct('User', array('autosave' => false));
-     * Stub::construct('User', array('autosave' => false), array('name' => 'davert));
+     * Stub::construct('User', array('autosave' => false), array('name' => 'davert'));
      * ?>
      * ```
      *
@@ -257,7 +256,7 @@ class Stub
      *
      * ``` php
      * <?php
-     * Stub::construct(new User, array('autosave' => false), array('name' => 'davert));
+     * Stub::construct(new User, array('autosave' => false), array('name' => 'davert'));
      * ?>
      * ```
      *
@@ -270,7 +269,7 @@ class Stub
      * ?>
      * ```
      *
-     * @param                                  $class
+     * @param mixed $class
      * @param array $constructorParams
      * @param array $params
      * @param bool|\PHPUnit_Framework_TestCase $testCase
@@ -300,7 +299,7 @@ class Stub
      * ``` php
      * <?php
      * Stub::constructEmpty('User', array('autosave' => false));
-     * Stub::constructEmpty('User', array('autosave' => false), array('name' => 'davert));
+     * Stub::constructEmpty('User', array('autosave' => false), array('name' => 'davert'));
      * ?>
      * ```
      *
@@ -308,7 +307,7 @@ class Stub
      *
      * ``` php
      * <?php
-     * Stub::constructEmpty(new User, array('autosave' => false), array('name' => 'davert));
+     * Stub::constructEmpty(new User, array('autosave' => false), array('name' => 'davert'));
      * ?>
      * ```
      *
@@ -321,7 +320,7 @@ class Stub
      * ?>
      * ```
      *
-     * @param                                  $class
+     * @param mixed $class
      * @param array $constructorParams
      * @param array $params
      * @param bool|\PHPUnit_Framework_TestCase $testCase
@@ -355,7 +354,7 @@ class Stub
      * ``` php
      * <?php
      * Stub::constructEmptyExcept('User', 'save');
-     * Stub::constructEmptyExcept('User', 'save', array('autosave' => false), array('name' => 'davert));
+     * Stub::constructEmptyExcept('User', 'save', array('autosave' => false), array('name' => 'davert'));
      * ?>
      * ```
      *
@@ -363,7 +362,7 @@ class Stub
      *
      * ``` php
      * <?php
-     * Stub::constructEmptyExcept(new User, 'save', array('autosave' => false), array('name' => 'davert));
+     * Stub::constructEmptyExcept(new User, 'save', array('autosave' => false), array('name' => 'davert'));
      * ?>
      * ```
      *
@@ -376,8 +375,8 @@ class Stub
      * ?>
      * ```
      *
-     * @param                                 $class
-     * @param                                 $method
+     * @param mixed $class
+     * @param string $method
      * @param array $constructorParams
      * @param array $params
      * @param bool|\PHPUnit_Framework_TestCase $testCase
@@ -496,6 +495,13 @@ class Stub
     protected static function bindParameters($mock, $params)
     {
         $reflectionClass = new \ReflectionClass($mock);
+        if ($mock instanceof \PHPUnit_Framework_MockObject_MockObject) {
+            $parentClass = $reflectionClass->getParentClass();
+            if ($parentClass !== FALSE) {
+                $reflectionClass = $reflectionClass->getParentClass();
+            }
+        }
+        
 
         foreach ($params as $param => $value) {
             // redefine method
@@ -535,7 +541,7 @@ class Stub
                     } catch (\Exception $e) {
                         throw new \PHPUnit_Framework_Exception(
                             sprintf(
-                                'Could not add property %s, class %s implements __set method, and no %s property exists',
+                                'Could not add property %1$s, class %2$s implements __set method, and no %1$s property exists',
                                 $param,
                                 $reflectionClass->getName()
                             ),

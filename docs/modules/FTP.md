@@ -1,6 +1,4 @@
-# FTP Module
 
-**For additional reference, please review the [source](https://github.com/Codeception/Codeception/tree/2.0/src/Codeception/Module/FTP.php)**
 
 
 
@@ -147,7 +145,7 @@ Deletes a file
 
 ### dontSeeFileFound
  
-Checks if file does not exists in path on the remote FTP/SFTP system
+Checks if file does not exist in path on the remote FTP/SFTP system
 
  * `param` $filename
  * `param string` $path
@@ -155,7 +153,7 @@ Checks if file does not exists in path on the remote FTP/SFTP system
 
 ### dontSeeFileFoundMatches
  
-Checks if file does not exists in path on the remote FTP/SFTP system, using regular expression as filename.
+Checks if file does not exist in path on the remote FTP/SFTP system, using regular expression as filename.
 DOES NOT OPEN the file when it's exists
 
  * `param` $regex
@@ -186,7 +184,7 @@ $pwd = $I->grabDirectory();
 ?>
 ```
 
-@return string
+ * `return` string
 
 
 ### grabFileCount
@@ -202,7 +200,7 @@ $count = $I->grabFileCount('TEST', false); // Include . .. .thumbs.db
 
  * `param string` $path
  * `param bool` $ignore - suppress '.', '..' and '.thumbs.db'
-@return int
+ * `return` int
 
 
 ### grabFileList
@@ -218,7 +216,7 @@ $count = $I->grabFileList('TEST', false); // Include . .. .thumbs.db
 
  * `param string` $path
  * `param bool` $ignore - suppress '.', '..' and '.thumbs.db'
-@return array
+ * `return` array
 
 
 ### grabFileModified
@@ -232,7 +230,7 @@ $time = $I->grabFileModified('test.txt');
 ```
 
  * `param` $filename
-@return bool
+ * `return` bool
 
 
 ### grabFileSize
@@ -246,7 +244,7 @@ $size = $I->grabFileSize('test.txt');
 ```
 
  * `param` $filename
-@return bool
+ * `return` bool
 
 
 ### loginAs
@@ -402,4 +400,4 @@ $I->writeToFile('composer.json', 'some data here');
  * `param` $filename
  * `param` $contents
 
-<p>&nbsp;</p><div class="alert alert-warning">Module reference is taken from the source code. <a href="https://github.com/Codeception/Codeception/tree/2.0/src/Codeception/Module/FTP.php">Help us to improve documentation. Edit module reference</a></div>
+<p>&nbsp;</p><div class="alert alert-warning">Module reference is taken from the source code. <a href="https://github.com/Codeception/Codeception/tree/2.1/src/Codeception/Module/FTP.php">Help us to improve documentation. Edit module reference</a></div>

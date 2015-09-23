@@ -9,6 +9,7 @@ use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 
 abstract class Extension implements EventSubscriberInterface
 {
+    public static $events = [];
 
     protected $config = [];
     protected $options;
@@ -24,12 +25,11 @@ abstract class Extension implements EventSubscriberInterface
         $this->_initialize();
     }
 
-    static $events = [];
 
     static function getSubscribedEvents()
     {
         if (isset(static::$events[Events::SUITE_INIT])) {
-            if (!is_array(static::$events)) {
+            if (!is_array(static::$events[Events::SUITE_INIT])) {
                 static::$events[Events::SUITE_INIT] = [[static::$events[Events::SUITE_INIT]]];
             }
             static::$events[Events::SUITE_INIT][] = ['receiveModuleContainer'];
@@ -121,5 +121,4 @@ abstract class Extension implements EventSubscriberInterface
     {
         return Config::config();
     }
-
 }

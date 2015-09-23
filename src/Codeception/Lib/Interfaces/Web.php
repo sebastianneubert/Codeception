@@ -1,5 +1,4 @@
 <?php
-
 namespace Codeception\Lib\Interfaces;
 
 interface Web
@@ -91,7 +90,7 @@ interface Web
      *     <input type="text" name="user[login]" /><br/>
      *     Password:
      *     <input type="password" name="user[password]" /><br/>
-     *     Do you agree to out terms?
+     *     Do you agree to our terms?
      *     <input type="checkbox" name="user[agree]" /><br/>
      *     Select pricing plan:
      *     <select name="plan">

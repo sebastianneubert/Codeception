@@ -3,6 +3,8 @@ namespace Codeception\PHPUnit\Constraint;
 
 use Codeception\Exception\ElementNotFound;
 use Codeception\Lib\Console\Message;
+use Codeception\Util\Locator;
+use SebastianBergmann\Comparator\ComparisonFailure;
 
 class WebDriver extends Page
 {
@@ -28,13 +30,13 @@ class WebDriver extends Page
         return false;
     }
 
-    protected function fail($nodes, $selector, \SebastianBergmann\Comparator\ComparisonFailure $comparisonFailure = null)
+    protected function fail($nodes, $selector, ComparisonFailure $comparisonFailure = null)
     {
         if (!count($nodes)) {
             throw new ElementNotFound($selector, 'Element located either by name, CSS or XPath');
         }
 
-        $output = new Message("Failed asserting that any element by '$selector'");
+        $output = "Failed asserting that any element by " . Locator::humanReadableString($selector);
         $output .= $this->uriMessage('on page');
 
         if (count($nodes) < 5) {
@@ -65,10 +67,8 @@ class WebDriver extends Page
     {
         $output = "";
         foreach ($nodes as $node) {
-            if ($contains) {
-                if (strpos($node->getText(), $contains) === false) {
-                    continue;
-                }
+            if ($contains && strpos($node->getText(), $contains) === false) {
+                continue;
             }
             /** @var $node \WebDriverElement  * */
             $message = new Message("<%s> %s");

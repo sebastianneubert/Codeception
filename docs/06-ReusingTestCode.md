@@ -239,17 +239,22 @@ But let's move further. A PageObject concept also defines that methods for the p
 
 ```php
 <?php
-class UserLoginPage
+namespace Page;
+
+class Login
 {
-    // include url of current page
     public static $URL = '/login';
+
+    public static $usernameField = '#mainForm #username';
+    public static $passwordField = '#mainForm input[name=password]';
+    public static $loginButton = '#mainForm input[type=submit]';
 
     /**
      * @var AcceptanceTester
      */
     protected $tester;
 
-    public function __construct(AcceptanceTester $I)
+    public function __construct(\AcceptanceTester $I)
     {
         $this->tester = $I;
     }
@@ -259,9 +264,9 @@ class UserLoginPage
         $I = $this->tester;
 
         $I->amOnPage(self::$URL);
-        $I->fillField(LoginPage::$usernameField, $name);
-        $I->fillField(LoginPage::$passwordField, $password);
-        $I->click(LoginPage::$loginButton);
+        $I->fillField(self::$usernameField, $name);
+        $I->fillField(self::$passwordField, $password);
+        $I->click(self::$loginButton);
 
         return $this;
     }    
@@ -273,8 +278,10 @@ And here is an example of how this PageObject can be used in a test.
 
 ```php
 <?php
+use Page\Login as LoginPage;
+
 $I = new AcceptanceTester($scenario);
-$loginPage = new \Page\Login($I);
+$loginPage = new LoginPage($I);
 $loginPage->login('bill evans', 'debby');
 $I->amOnPage('/profile');
 $I->see('Bill Evans Profile', 'h1');
@@ -297,7 +304,7 @@ class UserCest
 ?>
 ```
 
-The dependency nijection container can construct any object that require any known class type. For instance, `Page\Login` required `AcceptanceTester`, and so it was injected into `Page\Login` constructor, and PageObject was created and passed into method arguments. You should specify explicitly the types of requried objects for Codeception to know what objects should be created for a test. Dependency Injection will be described in the next chapter. 
+The dependency injection container can construct any object that require any known class type. For instance, `Page\Login` required `AcceptanceTester`, and so it was injected into `Page\Login` constructor, and PageObject was created and passed into method arguments. You should specify explicitly the types of requried objects for Codeception to know what objects should be created for a test. Dependency Injection will be described in the next chapter. 
 
 ## Modules and Helpers
 
@@ -389,7 +396,7 @@ The order of the modules can be defined in the suite config.
 
 However, some of modules may conflict with each other. In order to avoid confusion which module is used in the first place, Framework modules, PhpBrowser, and WebDriver can't be used together. The `_conflicts` method of a module is used to specify which class or interface it conflicts with. Codeception will throw an exception if there will be a module enabled which matches the provided criteria.
 
-### Connecting Modules
+### Accessing Other Modules
 
 It's possible that you will need to access internal data or functions from other modules. For example, for your module you might need to access responses or internal actions of modules.
 
@@ -408,24 +415,21 @@ function reconnectToDatabase() {
 ?>
 ```
 
-By using the `getModule` function, you get access to all of the public methods and properties of the requested module. The dbh property was defined as public specifically to be available to other modules.
+By using the `getModule` function, you get access to all of the public methods and properties of the requested module. The `dbh` property was defined as public specifically to be available to other modules.
 
-If you want to extend functionality of a standard module you may connect to it and by using public properties and methods create your custom action or assertion:
+Modules may also contain methods that are exposed for use in helper classes. Those methods start with `_` prefix and are not available in Actor classes, so can be accessed only from modules and extensions.
 
+You should use them to write your own actions using module internals.
+   
 ```php
 <?php
 function seeNumResults($num)
 {
     // retrieving webdriver session
-    /** @var $wd \RemoteWebDriver */
-    $wd = $this->getModule('WebDriver')->webDriver;
-
-    // searching for table which contains results
-    /**@var $el \WebDriverElement */
-    $el = $wd->findElement(WebDriverBy::id('results'));
-    // asserting that #results is actually a table
-    $this->assertEquals('table', $el->getTagName());
-    $results = $el->findElements('tr');
+    /**@var $table \Facebook\WebDriver\WebDriverElement */
+    $table = $this->getModule('WebDriver')->_findElements('#result');
+    $this->assertEquals('table', $table->getTagName());
+    $results = $table->findElements('tr');
 
     // asserting that table contains exactly $num rows
     $this->assertEquals($num, count($results));
@@ -433,10 +437,9 @@ function seeNumResults($num)
 ?>
 ```
 
-<div class="alert alert-info">
-In this example we use API of <a href="https://github.com/facebook/php-webdriver">facebook/php-webdriver</a> library, a Selenium WebDriver client.
-</div>
-
+In this example we use API of <a href="https://github.com/facebook/php-webdriver">facebook/php-webdriver</a> library, a Selenium WebDriver client a module is build on. 
+You can also access `webDriver` property of a module to get access to `Facebook\WebDriver\RemoteWebDriver` instance for direct Selenium interaction.
+ 
 ### Hooks
 
 Each module can handle events from the running test. A module can be executed before the test starts, or after the test is finished. This can be useful for bootstrap/cleanup actions.

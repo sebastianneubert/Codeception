@@ -1,8 +1,74 @@
 # Changelog
 
+#### 2.1.3
+
+* [Symfony2] Fixed issue when accessing profiler when no request has been performed #652.
+* [Symfony2] Added amOnRoute and seeCurrentRouteIs methods to Symfony2 module, by @raistlin
+* [ZF1] Added amOnRoute and seeCurrentRouteIs methods to ZF1 module, by @Naktibalda
+* [ZF2] Added amOnRoute and seeCurrentRouteIs methods to ZF2 module, by @Naktibalda
+* Fixed issue with trailing slashes in `seeCurrentUrlEquals` and `dontSeeCurrentUrlEquals` methods #2324. By @janhenkgerritsen
+* Warning is displayed once using unconfigured environment.
+* Fixed loading environment configurations for Cept files by @splinter89
+* Fixed bootstrap with namespaces to inject namespaced actor classes properly.
+* [PhpBrowser][Frameworks] added hidden `_request()` method to send requests to backend from Helper classes.
+* [Laravel5] Added `disableEvents()`, `enableEvents()` and `expectEvents()` methods. By @janhenkgerritsen
+* [Laravel5] Added `dontSeeFormErrors()` method. By @janhenkgerritsen
+* [Db] Deleted Oracle driver (it existed by mistake, the real driver is Oci). By @Naktibalda
+* [Db] Implemented getPrimaryKey method for Sqlite, Mysql, Postgresql, Oracle and MsSql. By @Naktibalda
+* [Db] Implemented support for composite primary keys and tables without primary keys. By @Naktibalda
+* Fixed the scalarizeArray to be aware of NULL fields #2264. By @fbidu
+* [Soap] Fixed SOAP module #2296. By @relaxart
+* Fixed a bug where blank lines in a groups file would run every test in the project #2297. By @imjoehaines
+* [WebDriver] seeNumberOfElements should only count visible elements #2303. By @sascha-egerer
+* [Functional] Verbose output for redirects. By @Naktibalda
+* [Functional] Throw Codeception\Exception\ExternalUrlException when framework module tries to open an external URL #2328. By @Naktibalda
+
+#### 2.1.2
+
+* **Updated to PHPUnit 4.8**
+* Enhancement: **Wildcard includes enabled when testing [multiple applications](http://codeception.com/docs/08-Customization#One-Runner-for-Multiple-Applications)**. See #2016 By @nzod
+* [Symfony2] fixed Doctrine2 integration: Doctrine transactions will start before each test and rollback afterwards. *2015-08-08*
+* [Doctrine2] establishing connection and starting transaction is moved to `_before`. *2015-08-08*
+* [PhpBrowser] Removed disabled and file fields from form values. By @Naktibalda *2015-08-08*
+* [ZF2] Added grabServiceFromContainer function. By InVeX  *2015-08-08*
+* [PhpBrowser][Guzzle6] Disabled strict mode of CookieJar #2234 By @Naktibalda *2015-08-04*
+* [Laravel5] Added `disableMiddleware()` and `enableMiddleware()` methods. By @janhenkgerritsen *2015-08-07*
+* Enhancement: If a specific *ActorActions trait does not exist in `tests/_support/_generated` directory, it will be created automatically before run.
+* Enhancement: do not execute all included suites if you run one specific suite *2015-08-08*
+* `Extension\Recorder` navigate over slides with left and right arrow keys, do not create screenshots for comment steps.
+* `Extension\Recorder` generates index html for all saved records.
+* `Extension\Recorder` fixed for creating directories twice. Fixed #2216
+* `Extension\Logger` fixed #2216
+* Fixed injection of Helpers into Cest and Test files. See #2222
+* `Stub::makeEmpty` on interfaces works again by @Naktibalda
+* Command `generate:scenarios` fixed for Cest files by @mkudenko See #1962
+* [Db] Quoted table name in Db::select, removed identical methods from child classes by @Naktibalda. See #2231
+* [WebDriver] added support for running tests on a remote server behind a proxy with `http_proxy` and `http_proxy_port` config options by @jdq22 *2015-07-29*
+* [Laravel] Fixed issue with error handling for `haveRecord()` method in Laravel modules #2217 by @janhenkgerritsen *2015-07-28*
+* Fixed displayed XML/HTML report path #2187 by @Naktibalda *2015-07-27*
+* [WebDriver] Fixed `waitForElementChange` fatal error by @stipsan
+* [Db] Enhanced dollar quoting ($$) processing in PostgreSQL driver by @YasserHassan *2015-07-20*
+* [REST] Created tests for file-upload with REST module. By @Naktibalda *2015-08-08*
+* [Lumen] Fixed issue where wrong request object was passed to the Lumen application by @janhenkgerritsen *2015-07-18*
+
+#### 2.1.1
+
+* [WebDriver] **Upgraded to facebook/webdriver 1.0** *2015-07-11*
+  WebDriver classes were moved to `Facebook\WebDriver` namespace. Please take that into account when using WebDriver API directly.
+  Till 2.2 Codeception will keep non-namespaced aliases of WebDriver classes.
+* Module Reference now contains documentation for hidden API methods which should be used in Helper classes
+* Skipped and Incomplete tests won't fire `test.before` and `test.after` events. For instance, WebDriver browser won't be started and Db cleanups won't be executed on incomplete or skipped tests.
+* Annotations `skip` and `incomplete` enabled in Cest files #2131
+* [WebDriver][PhpBrowser][Frameworks] `_findElements($locator)` method added to use in Helper classes *2015-07-11*
+  Now you can use `$this->getModule('WebDriver')->findElements('.user');` in Helpers to match all elements with `user` class using WebDriver module
+* [PhpBrowser] Fixed `amOnUrl` method to open absolute URLs.
+* [PhpBrowser][Frameworks] Fix for `fillField` using values that contain ampersands by @GawainLynch and @zbateson Issue #2132
+* [WebDriver][PhpBrowser][Frameworks] Fixed missing HTTPS when trying to access protected pages #2141
+
 #### 2.1.0
 
-* **Updated to Guzzle 6**. Codeception can now work both with Guzzle v5 and Guzzle v6. PhpBrowser choses right connector depending on Guzzle version installed.
+* [Recorder](https://github.com/Codeception/Codeception/tree/master/ext#codeceptionextensionrecorder) extension added. Shows acceptance test progress with a recorded slideshow.
+* **Updated to Guzzle 6**. Codeception can now work both with Guzzle v5 and Guzzle v6. PhpBrowser chooses right connector depending on Guzzle version installed. By @davertmik and @enumag
 * Annotations in Cept files.
   Instead of calling `$scenario->skip()`, `$scenario->group('firefox')`, etc, it is recommended to set scenario metadata with annotations `// @skip`, `// @group firefox`.
   Annotations can be parsed from line or block comments. `$scenario->skip()` and `$scenario->incomplete()` are still valid and can be executed inside conditional statements:
@@ -31,14 +97,27 @@
 * Graceful tests termination using `pcntl_signal`. See #1286
 * Group classes renamed to GroupObjects; Base GroupObject class renamed to `Codeception\GroupObject`
 * Official extensions moved to `ext` dir; Base Extension class renamed to `Codeception\Extension`
+* Duplicate environment options won't cause Codeception to run environment tests twice
+* [Phalcon1] `haveServiceInDi` method implemented by @sergeyklay
+* [Db] `seeNumRecords` method added by @sergeyklay
 
 #### 2.0.15
 
+* [Phalcon1] Fixed getting has more than one field by @sergeyklay #2010.
+* [PhpBrowser][Frameworks] Compute relative URIs against the effective request URI when there is a redirect. #2058 #2057
+* [PhpBrowser] Fixed Guzzle Connector headers by @valeriyaslovikovskaya #2028
+* [Symfony2] kernel is created for every test by @quaninte #2020
+* [WebDriver] Added WebDriver init settings `connection_timeout` and `request_timeout` by @n8whnp #2065
+* [MongoDb] added ability to change the database by @clarkeash #2015
+* [Doctrine2] Fixed issues after first request is made #2025 @AlexStansfield
+* [REST] Improved JsonArray to compare repeated values correctly by @Naktibalda #2070
+* [MongoDb] Remove not necessary config fields `user` and `password` by @nicklasos
+* `Stub::construct` can be used to set private/protected properties by @Naktibalda #2082
 * Fixed @before and @after hooks in Cest. _before method was executed on each call of method specified in @before annotation *2015-06-15*
 * [Laravel5] Fix for domains in `route()` helper. See #2000. *2015-06-04*
 * [REST] Fixed sending `JsonSerializable` object on POST by @Naktibalda and @andersonamuller. See #1988 #1994
 * [MongoDb] escaped filename shell argument for loading MongoDB by @christoph-hautzinger. #1998 *2015-06-03*
-* [Lumen] Module added by @janhenkgerritsen
+* [Lumen] **Module added** by @janhenkgerritsen
 
 #### 2.0.14
 

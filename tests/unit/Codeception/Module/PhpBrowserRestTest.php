@@ -37,6 +37,13 @@ class PhpBrowserRestTest extends \PHPUnit_Framework_TestCase
         $this->module->dontSeeResponseCodeIs(404);
     }
 
+    public function testSendAbsoluteUrlGet()
+    {
+        $this->module->sendGET('http://127.0.0.1:8010/rest/user/');
+        $this->module->seeResponseCodeIs(200);
+        $this->assertEquals('http://127.0.0.1:8010/rest/user/', $this->module->client->getHistory()->current()->getUri());
+    }
+
     public function testPost() {
         $this->module->sendPOST('/rest/user/', array('name' => 'john'));
         $this->module->seeResponseContains('john');
@@ -145,6 +152,82 @@ class PhpBrowserRestTest extends \PHPUnit_Framework_TestCase
         $this->module->seeResponseContains('host: http://www.example.com');
     }
 
+    /**
+     * @Issue https://github.com/Codeception/Codeception/issues/2075
+     * Client is undefined for the second test
+     */
+    public function testTwoTests() {
+        $cest1 = Stub::makeEmpty('\Codeception\TestCase\Cest');
+        $cest2 = Stub::makeEmpty('\Codeception\TestCase\Cest');
+
+        $this->module->sendGET('/rest/user/');
+        $this->module->seeResponseIsJson();
+        $this->module->seeResponseContains('davert');
+        $this->module->seeResponseContainsJson(array('name' => 'davert'));
+        $this->module->seeResponseCodeIs(200);
+        $this->module->dontSeeResponseCodeIs(404);
+        
+        $this->phpBrowser->_after($cest1);
+        $this->module->_after($cest1);
+        $this->module->_before($cest2);
+        $this->phpBrowser->_before($cest2);
+        
+        $this->module->sendGET('/rest/user/');
+        $this->module->seeResponseIsJson();
+        $this->module->seeResponseContains('davert');
+        $this->module->seeResponseContainsJson(array('name' => 'davert'));
+        $this->module->seeResponseCodeIs(200);
+        $this->module->dontSeeResponseCodeIs(404);
+        
+    }
+    
+    /**
+     * @Issue https://github.com/Codeception/Codeception/issues/2070
+     */
+    public function testArrayOfZeroesInJsonResponse()
+    {
+        $this->module->haveHttpHeader('Content-Type', 'application/json');
+        $this->module->sendGET('/rest/zeroes');
+        $this->module->dontSeeResponseContainsJson([
+            'responseCode' => 0,
+            'data' => [
+                0,
+                0,
+                0,
+            ]
+        ]);
+    }
+
+    public function testFileUploadWithKeyValueArray()
+    {
+        $tmpFileName = tempnam('/tmp', 'test_');
+        file_put_contents($tmpFileName, 'test data');
+        $files = [
+            'file' => $tmpFileName,
+        ];
+        $this->module->sendPOST('/rest/file-upload', [], $files);
+        $this->module->seeResponseContainsJson([
+            'uploaded' => true,
+        ]);
+    }
+
+    public function testFileUploadWithFilesArray()
+    {
+        $tmpFileName = tempnam('/tmp', 'test_');
+        file_put_contents($tmpFileName, 'test data');
+        $files = [
+            'file' => [
+                'name' => 'file.txt',
+                'type' => 'text/plain',
+                'size' => 9,
+                'tmp_name' => $tmpFileName,
+            ]
+        ];
+        $this->module->sendPOST('/rest/file-upload', [], $files);
+        $this->module->seeResponseContainsJson([
+            'uploaded' => true,
+        ]);
+    }
 
     protected function shouldFail()
     {

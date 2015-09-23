@@ -6,15 +6,31 @@ use Codeception\Event\StepEvent;
 use Codeception\Event\SuiteEvent;
 use Codeception\Event\TestEvent;
 use Codeception\Events;
+use Codeception\Exception\ConfigurationException;
 use Codeception\Extension;
 use Monolog\Handler\RotatingFileHandler;
 
 /**
  * Log suites/tests/steps using Monolog library.
+ * Monolog should be installed additionally by Composer.
  *
+ * ```
+ * composer require monolog/monolog
+ * ```
  *
- * Class Logger
- * @package Codeception\Platform
+ * Steps are logged into `tests/_output/codeception.log`
+ *
+ * To enable this module add to your `codeception.yml`:
+ *
+ * ``` yaml
+ * extensions:
+ *     enabled: [Codeception\Extension\Logger]
+ * ```
+ *
+ * #### Config
+ *
+ * * `max_files` (default: 3) - how many log files to keep
+ *
  */
 class Logger extends Extension
 {
@@ -44,7 +60,7 @@ class Logger extends Extension
     public function __construct()
     {
         if (!class_exists('\Monolog\Logger')) {
-            throw new \Codeception\Exception\ConfigurationException("Logger extension requires Monolog library to be installed");
+            throw new ConfigurationException("Logger extension requires Monolog library to be installed");
         }
 
         $this->path = $this->getLogDir();
@@ -65,6 +81,8 @@ class Logger extends Extension
     {
         $this->logger = new \Monolog\Logger($e->getTest()->getFileName());
         $this->logger->pushHandler($this->logHandler);
+        $this->logger->info('------------------------------------');
+        $this->logger->info("STARTED: " . ucfirst($e->getTest()->getName(false)));
     }
 
     public function afterTest(TestEvent $e)
@@ -100,7 +118,7 @@ class Logger extends Extension
 
     public function beforeStep(StepEvent $e)
     {
-        $this->logger->info($e->getStep()->getHumanizedAction());
+        $this->logger->info((string) $e->getStep());
     }
 
 } 

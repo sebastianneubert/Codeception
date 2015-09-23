@@ -2,9 +2,10 @@
 namespace Codeception\TestCase\Shared;
 
 use Codeception\Event\StepEvent;
+use Codeception\Event\TestEvent;
 use Codeception\Events;
 use Codeception\Exception\ConditionalAssertionFailed;
-use Codeception\Exception\ConfigurationException as ConfigurationException;
+use Codeception\Exception\ConfigurationException;
 use Codeception\Lib\Di;
 use Codeception\Lib\ModuleContainer;
 use Codeception\Lib\Parser;
@@ -12,7 +13,6 @@ use Codeception\Scenario;
 use Codeception\Step;
 use Symfony\Component\EventDispatcher\Event;
 use Symfony\Component\EventDispatcher\EventDispatcher;
-
 
 trait Actor
 {
@@ -54,11 +54,13 @@ trait Actor
 
     public function initConfig()
     {
-        $this->scenario = new Scenario($this, [
-            'env'       => $this->env,
-            'modules'   => $this->moduleContainer->all(),
-            'name'      => $this->testName
-        ]);
+        $this->scenario = new Scenario(
+            $this, [
+            'env'     => $this->env,
+            'modules' => $this->moduleContainer->all(),
+            'name'    => $this->testName
+        ]
+        );
         $this->parser = new Parser($this->scenario);
         return $this;
     }
@@ -152,7 +154,7 @@ trait Actor
 
     public function configDi(Di $di)
     {
-        $this->di = $di;
+        $this->di = clone($di);
         return $this;
     }
 

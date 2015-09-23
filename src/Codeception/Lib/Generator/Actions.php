@@ -29,6 +29,7 @@ trait {{name}}Actions
 
     {{methods}}
 }
+
 EOF;
 
 
@@ -47,7 +48,7 @@ EOF;
 
     protected $name;
     protected $settings;
-    protected $modules;
+    protected $modules = [];
     protected $actions;
     protected $numMethods = 0;
 
@@ -214,6 +215,4 @@ EOF;
     {
         return $this->numMethods;
     }
-
-
 } 

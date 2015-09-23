@@ -1,20 +1,22 @@
 <?php
-
 namespace Codeception\TestCase;
 
 use Codeception\Configuration;
-use Codeception\Event\TestEvent;
-use Codeception\Events;
-use Codeception\TestCase;
+use Codeception\TestCase as CodeceptionTestCase;
 use Codeception\Util\Annotation;
+use Codeception\TestCase\Interfaces\Descriptive;
+use Codeception\TestCase\Interfaces\Reported;
+use Codeception\TestCase\Interfaces\Configurable;
+use Codeception\TestCase\Shared\Actor;
+use Codeception\TestCase\Shared\Dependencies;
 
-class Test extends TestCase implements
-    Interfaces\Descriptive,
-    Interfaces\Configurable,
-    Interfaces\Reported
+class Test extends CodeceptionTestCase implements
+    Descriptive,
+    Configurable,
+    Reported
 {
-    use Shared\Actor;
-    use Shared\Dependencies;
+    use Actor;
+    use Dependencies;
 
     protected function setUp()
     {
@@ -27,8 +29,6 @@ class Test extends TestCase implements
             $actorProperty = lcfirst($actor);
             $this->$actorProperty = $this->$property;
         }
-        $this->getScenario()->stopIfBlocked();
-        $this->fire(Events::TEST_BEFORE, new TestEvent($this));
         $this->_before();
         $this->prepareActorForTest();
     }
@@ -43,7 +43,6 @@ class Test extends TestCase implements
     protected function tearDown()
     {
         $this->_after();
-        $this->fire(Events::TEST_AFTER, new TestEvent($this));
     }
 
     /**

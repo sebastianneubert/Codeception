@@ -20,10 +20,10 @@ class ModuleContainerTest extends \PHPUnit_Framework_TestCase
 
     protected function tearDown()
     {
-        \Codeception\Module\PhpSiteHelper::$includeInheritedActions = true;
-        \Codeception\Module\PhpSiteHelper::$onlyActions = [];
-        \Codeception\Module\PhpSiteHelper::$excludeActions = [];
-        \Codeception\Module\PhpSiteHelper::$aliases = [];
+        \Codeception\Module\UniversalFramework::$includeInheritedActions = true;
+        \Codeception\Module\UniversalFramework::$onlyActions = [];
+        \Codeception\Module\UniversalFramework::$excludeActions = [];
+        \Codeception\Module\UniversalFramework::$aliases = [];
     }
 
     /**
@@ -59,7 +59,7 @@ class ModuleContainerTest extends \PHPUnit_Framework_TestCase
      */
     public function testActionsInExtendedModule()
     {
-        $this->moduleContainer->create('\Codeception\Module\PhpSiteHelper');
+        $this->moduleContainer->create('\Codeception\Module\UniversalFramework');
         $actions = $this->moduleContainer->getActions();
         $this->assertArrayHasKey('amOnPage', $actions);
         $this->assertArrayHasKey('see', $actions);
@@ -71,8 +71,8 @@ class ModuleContainerTest extends \PHPUnit_Framework_TestCase
      */
     public function testActionsInExtendedButNotInheritedModule()
     {
-        \Codeception\Module\PhpSiteHelper::$includeInheritedActions = false;
-        $this->moduleContainer->create('\Codeception\Module\PhpSiteHelper');
+        \Codeception\Module\UniversalFramework::$includeInheritedActions = false;
+        $this->moduleContainer->create('\Codeception\Module\UniversalFramework');
         $actions = $this->moduleContainer->getActions();
         $this->assertArrayNotHasKey('amOnPage', $actions);
         $this->assertArrayNotHasKey('see', $actions);
@@ -84,9 +84,9 @@ class ModuleContainerTest extends \PHPUnit_Framework_TestCase
      */
     public function testExplicitlySetActionsOnNotInherited()
     {
-        \Codeception\Module\PhpSiteHelper::$includeInheritedActions = false;
-        \Codeception\Module\PhpSiteHelper::$onlyActions = ['see'];
-        $this->moduleContainer->create('\Codeception\Module\PhpSiteHelper');
+        \Codeception\Module\UniversalFramework::$includeInheritedActions = false;
+        \Codeception\Module\UniversalFramework::$onlyActions = ['see'];
+        $this->moduleContainer->create('\Codeception\Module\UniversalFramework');
         $actions = $this->moduleContainer->getActions();
         $this->assertArrayNotHasKey('amOnPage', $actions);
         $this->assertArrayHasKey('see', $actions);
@@ -98,8 +98,8 @@ class ModuleContainerTest extends \PHPUnit_Framework_TestCase
      */
     public function testActionsExplicitlySetForNotInheritedModule()
     {
-        \Codeception\Module\PhpSiteHelper::$onlyActions = ['see'];
-        $this->moduleContainer->create('\Codeception\Module\PhpSiteHelper');
+        \Codeception\Module\UniversalFramework::$onlyActions = ['see'];
+        $this->moduleContainer->create('\Codeception\Module\UniversalFramework');
         $actions = $this->moduleContainer->getActions();
         $this->assertArrayNotHasKey('amOnPage', $actions);
         $this->assertArrayHasKey('see', $actions);
@@ -284,6 +284,16 @@ class ModuleContainerTest extends \PHPUnit_Framework_TestCase
         $this->moduleContainer->hasModule('\Codeception\Lib\DependencyModule');
     }
 
+    public function testInjectModuleIntoHelper()
+    {
+        $config = ['modules' => [
+            'enabled' => ['Codeception\Lib\HelperModule'],
+        ]];
+        $this->moduleContainer = new ModuleContainer(Stub::make('Codeception\Lib\Di'), $config);
+        $this->moduleContainer->create('Codeception\Lib\HelperModule');
+        $this->moduleContainer->hasModule('Codeception\Lib\HelperModule');
+    }
+
 }
 
 class StubModule extends \Codeception\Module
@@ -303,6 +313,17 @@ class StubModule extends \Codeception\Module
         return $this->config['secondField'];
     }
 
+}
+
+
+
+
+class HelperModule extends \Codeception\Module
+{
+    function _inject(ConflictedModule $module)
+    {
+        $this->module = $module;
+    }
 }
 
 class ConflictedModule extends \Codeception\Module implements ConflictsWithModule

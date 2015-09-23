@@ -9,7 +9,6 @@ use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 
 abstract class SuiteSubscriber implements EventSubscriberInterface
 {
-
     use StaticEvents;
 
     protected $defaultSettings = [
@@ -41,10 +40,11 @@ abstract class SuiteSubscriber implements EventSubscriberInterface
 
     protected function applySettings($settings)
     {
-        if (!function_exists('xdebug_is_enabled')) {
+        try {
+            $this->coverage = new \PHP_CodeCoverage();
+        } catch (\PHP_CodeCoverage_Exception $e) {
             throw new \Exception('XDebug is required to collect CodeCoverage. Please install xdebug extension and enable it in php.ini');
         }
-        $this->coverage = new \PHP_CodeCoverage();
 
         $this->filters = $settings;
         $this->settings = $this->defaultSettings;
@@ -86,5 +86,4 @@ abstract class SuiteSubscriber implements EventSubscriberInterface
     {
         Printer::$coverage->merge($coverage);
     }
-
 }

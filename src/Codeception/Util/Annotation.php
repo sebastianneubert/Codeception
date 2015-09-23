@@ -1,5 +1,4 @@
 <?php
-
 namespace Codeception\Util;
 
 /**
@@ -116,5 +115,10 @@ class Annotation
             return $matched[1];
         }
         return [];
+    }
+
+    public function raw()
+    {
+        return $this->currentReflectedItem->getDocComment();
     }
 }

@@ -1,5 +1,4 @@
 <?php
-
 namespace Codeception\Lib\Connector;
 
 use Codeception\Lib\Connector\Shared\PhpSuperGlobalsConverter;
@@ -16,7 +15,7 @@ use ReflectionProperty;
 use RuntimeException;
 use Closure;
 
-class Phalcon1 extends Client
+class Phalcon extends Client
 {
     use PhpSuperGlobalsConverter;
 

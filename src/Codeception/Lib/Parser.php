@@ -7,7 +7,6 @@ use Codeception\Util\Annotation;
 
 class Parser
 {
-
     protected $scenario;
     protected $code;
 
@@ -40,15 +39,9 @@ class Parser
 
     public function parseScenarioOptions($code)
     {
-        $annotations = ['group', 'env', 'skip', 'incomplete', 'ignore'];
         $comments = $this->matchComments($code);
-        foreach ($annotations as $annotation) {
-            $values = Annotation::fetchAllFromComment($annotation, $comments);
-            foreach ($values as $value) {
-                call_user_func([$this->scenario, $annotation], $value);
-            }
-        }
-
+        $this->attachMetadata($comments);
+        
         // deprecated - parsing $scenario->xxx calls
         $metaData = ['group', 'env'];
         $phpCode = $this->stripComments($code);
@@ -61,12 +54,25 @@ class Parser
             }
             foreach ($matches[0] as $line) {
                 // run $scenario->group or $scenario->env
-                \Codeception\Lib\Deprecation::add("$line -> \$scenario->$call() is deprecated in favor of annotation: // @$call");
+                \Codeception\Lib\Notification::deprecate("\$scenario->$call() is deprecated in favor of annotation: // @$call",
+                    $this->scenario->getFeature()
+                );
                 eval($line);
             }
 
         }
 
+    }
+
+    public function attachMetadata($comments)
+    {
+        $annotations = ['group', 'env', 'skip', 'incomplete', 'ignore'];
+        foreach ($annotations as $annotation) {
+            $values = Annotation::fetchAllFromComment($annotation, $comments);
+            foreach ($values as $value) {
+                call_user_func([$this->scenario, $annotation], $value);
+            }
+        }        
     }
 
     public function parseSteps($code)
@@ -82,7 +88,8 @@ class Parser
             }
             // friend's section start
             if (preg_match("~\\\$(.*?)->does\(~", $line, $matches)) {
-                if (!in_array($friend = $matches[1], $friends)) {
+                $friend = $matches[1];
+                if (!in_array($friend, $friends)) {
                     continue;
                 }
                 $isFriend = true;
@@ -96,7 +103,7 @@ class Parser
             }
 
             // friend's section ends
-            if ($isFriend and strpos($line, '}') !== false) {
+            if ($isFriend && strpos($line, '}') !== false) {
                 $this->addCommentStep("-------- back to me\n");
                 $isFriend = false;
             }
@@ -124,12 +131,13 @@ class Parser
         $sourceCode = file_get_contents($file);
         $classes = [];
         $tokens = token_get_all($sourceCode);
+        $tokenCount = count($tokens);
         $namespace = '';
 
-        for ($i = 0; $i < count($tokens); $i++) {
+        for ($i = 0; $i < $tokenCount; $i++) {
             if ($tokens[$i][0] === T_NAMESPACE) {
                 $namespace = '';
-                for ($j = $i + 1; $j < count($tokens); $j++) {
+                for ($j = $i + 1; $j < $tokenCount; $j++) {
                     if ($tokens[$j][0] === T_STRING) {
                         $namespace .= $tokens[$j][1] . '\\';
                     } else {
@@ -157,7 +165,7 @@ class Parser
 
         return $classes;
     }
-    
+
     /*
      * Include in different scope to prevent included file from affecting $file variable
      */ 
@@ -193,5 +201,4 @@ class Parser
         }
         return $comments;
     }
-
 }

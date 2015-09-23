@@ -6,10 +6,11 @@ use Codeception\Lib\Connector\Laravel5 as LaravelConnector;
 use Codeception\Lib\Framework;
 use Codeception\Lib\Interfaces\ActiveRecord;
 use Codeception\Lib\Interfaces\PartedModule;
+use Codeception\Lib\Interfaces\SupportsDomainRouting;
 use Codeception\Lib\ModuleContainer;
 use Codeception\Subscriber\ErrorHandler;
 use Illuminate\Contracts\Auth\Authenticatable;
-use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Facade;
 
 /**
  *
@@ -39,6 +40,8 @@ use Illuminate\Http\Request;
  * * bootstrap: `string`, default `bootstrap/app.php` - Relative path to app.php config file.
  * * root: `string`, default `` - Root path of our application.
  * * packages: `string`, default `workbench` - Root path of application packages (if any).
+ * * disable_middleware: `boolean`, default `false` - disable all middleware.
+ * * disable_events: `boolean`, default `false` - disable all events.
  *
  * ## API
  *
@@ -50,7 +53,7 @@ use Illuminate\Http\Request;
  * * ORM - include only haveRecord/grabRecord/seeRecord/dontSeeRecord actions
  *
  */
-class Laravel5 extends Framework implements ActiveRecord, PartedModule
+class Laravel5 extends Framework implements ActiveRecord, PartedModule, SupportsDomainRouting
 {
 
     /**
@@ -61,28 +64,41 @@ class Laravel5 extends Framework implements ActiveRecord, PartedModule
     /**
      * @var array
      */
-    protected $config = [];
+    public $config = [];
 
     /**
      * Constructor.
      *
      * @param ModuleContainer $container
-     * @param $config
+     * @param array|null $config
      */
     public function __construct(ModuleContainer $container, $config = null)
     {
         $this->config = array_merge(
             [
-                'cleanup'          => true,
+                'cleanup' => true,
                 'environment_file' => '.env',
                 'bootstrap' => 'bootstrap' . DIRECTORY_SEPARATOR . 'app.php',
                 'root' => '',
                 'packages' => 'workbench',
+                'disable_middleware' => false,
+                'disable_events' => false,
             ],
-            (array) $config
+            (array)$config
         );
 
+        $projectDir = explode($this->config['packages'], \Codeception\Configuration::projectDir())[0];
+        $projectDir .= $this->config['root'];
+
+        $this->config['project_dir'] = $projectDir;
+        $this->config['bootstrap_file'] = $projectDir . $this->config['bootstrap'];
+
         parent::__construct($container);
+    }
+
+    public function _parts()
+    {
+        return ['orm'];
     }
 
     /**
@@ -90,23 +106,33 @@ class Laravel5 extends Framework implements ActiveRecord, PartedModule
      */
     public function _initialize()
     {
+        $this->checkBootstrapFileExists();
+        $this->registerAutoloaders();
         $this->revertErrorHandler();
-        $this->initializeLaravel();
+        $this->client = new LaravelConnector($this);
     }
 
     /**
      * Before hook.
      *
      * @param \Codeception\TestCase $test
-     * @throws ModuleConfigException
      */
     public function _before(\Codeception\TestCase $test)
     {
-        $this->initializeLaravel();
-
         if ($this->app['db'] && $this->config['cleanup']) {
             $this->app['db']->beginTransaction();
         }
+
+        if ($this->app['auth']) {
+            $this->app['auth']->logout();
+        }
+
+        if ($this->app['session']) {
+            // Destroy existing sessions of previous tests
+            $this->app['session']->migrate(true);
+        }
+
+        $this->client->clearExpectedEvents();
     }
 
     /**
@@ -120,27 +146,9 @@ class Laravel5 extends Framework implements ActiveRecord, PartedModule
             $this->app['db']->rollback();
         }
 
-        if ($this->app['auth']) {
-            $this->app['auth']->logout();
+        if ($missedEvents = $this->client->missedEvents()) {
+            $test->fail('The following events did not fire: ' . implode(',', $missedEvents));
         }
-
-        if ($this->app['cache']) {
-            $this->app['cache']->flush();
-        }
-
-        if ($this->app['session']) {
-            $this->app['session']->flush();
-        }
-
-        // disconnect from DB to prevent "Too many connections" issue
-        if ($this->app['db']) {
-            $this->app['db']->disconnect();
-        }
-    }
-
-    public function _parts()
-    {
-        return ['orm'];
     }
 
     /**
@@ -150,10 +158,39 @@ class Laravel5 extends Framework implements ActiveRecord, PartedModule
      */
     public function _afterStep(\Codeception\Step $step)
     {
-        \Illuminate\Support\Facades\Facade::clearResolvedInstances();
-
         parent::_afterStep($step);
+
+        Facade::clearResolvedInstances();
     }
+
+    /**
+     * Make sure the Laravel bootstrap file exists.
+     *
+     * @throws ModuleConfig
+     */
+    protected function checkBootstrapFileExists()
+    {
+        $bootstrapFile = $this->config['bootstrap_file'];
+
+        if (!file_exists($bootstrapFile)) {
+            throw new ModuleConfigException(
+                $this,
+                "Laravel bootstrap file not found in $bootstrapFile.\nPlease provide a valid path to it using 'bootstrap' config param. "
+            );
+        }
+    }
+
+    /**
+     * Register Laravel autoloaders.
+     */
+    protected function registerAutoloaders()
+    {
+        require $this->config['project_dir'] . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
+
+        \Illuminate\Support\ClassLoader::register();
+    }
+
+
 
     /**
      * Revert back to the Codeception error handler,
@@ -162,47 +199,7 @@ class Laravel5 extends Framework implements ActiveRecord, PartedModule
     protected function revertErrorHandler()
     {
         $handler = new ErrorHandler();
-        set_error_handler([$handler, 'errorHandler']);
-    }
-
-    /**
-     * Initialize the Laravel framework.
-     *
-     * @throws ModuleConfigException
-     */
-    protected function initializeLaravel()
-    {
-        $this->app = $this->bootApplication();
-        $this->app->instance('request', new Request());
-        $this->client = new LaravelConnector($this->app);
-    }
-
-    /**
-     * Boot the Laravel application object.
-     *
-     * @return \Illuminate\Foundation\Application
-     * @throws \Codeception\Exception\ModuleConfigException
-     */
-    protected function bootApplication()
-    {
-        $projectDir = explode($this->config['packages'], \Codeception\Configuration::projectDir())[0];
-        $projectDir .= $this->config['root'];
-        require $projectDir . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
-
-        \Illuminate\Support\ClassLoader::register();
-
-        $bootstrapFile = $projectDir . $this->config['bootstrap'];
-
-        if (!file_exists($bootstrapFile)) {
-            throw new ModuleConfigException(
-                $this, "Laravel bootstrap file not found in $bootstrapFile.\nPlease provide a valid path to it using 'bootstrap' config param. "
-            );
-        }
-
-        $app = require $bootstrapFile;
-        $app->loadEnvironmentFrom($this->config['environment_file']);
-
-        return $app;
+        set_error_handler(array($handler, 'errorHandler'));
     }
 
     /**
@@ -213,6 +210,91 @@ class Laravel5 extends Framework implements ActiveRecord, PartedModule
     public function getApplication()
     {
         return $this->app;
+    }
+
+    /**
+     * @param $app
+     */
+    public function setApplication($app)
+    {
+        $this->app = $app;
+    }
+
+    /**
+     * Disable middleware for the next requests.
+     *
+     * ``` php
+     * <?php
+     * $I->disableMiddleware();
+     * ?>
+     * ```
+     */
+    public function disableMiddleware()
+    {
+        $this->config['disable_middleware'] = true;
+    }
+
+    /**
+     * Enable middleware for the next requests.
+     *
+     * ``` php
+     * <?php
+     * $I->enableMiddleware();
+     * ?>
+     * ```
+     */
+    public function enableMiddleware()
+    {
+        $this->config['disable_middleware'] = false;
+    }
+
+    /**
+     * Disable events for the next requests.
+     *
+     * ``` php
+     * <?php
+     * $I->disableEvents();
+     * ?>
+     * ```
+     */
+    public function disableEvents()
+    {
+        $this->config['disable_events'] = true;
+    }
+
+    /**
+     * Enable events for the next requests.
+     *
+     * ``` php
+     * <?php
+     * $I->enableEvents();
+     * ?>
+     * ```
+     */
+    public function enableEvents()
+    {
+        $this->config['disable_events'] = false;
+    }
+
+    /**
+     * Make sure events fired during the test.
+     *
+     * ``` php
+     * <?php
+     * $I->expectEvents('App\MyEvent');
+     * $I->expectEvents('App\MyEvent', 'App\MyOtherEvent');
+     * $I->expectEvents(['App\MyEvent', 'App\MyOtherEvent']);
+     * ?>
+     * ```
+     * @param $events
+     */
+    public function expectEvents($events)
+    {
+        $events = is_array($events) ? $events : func_get_args();
+
+        foreach ($events as $expectedEvent) {
+            $this->client->addExpectedEvent($expectedEvent);
+        }
     }
 
     /**
@@ -231,11 +313,11 @@ class Laravel5 extends Framework implements ActiveRecord, PartedModule
     {
         $route = $this->app['routes']->getByName($routeName);
 
-        if (! $route) {
+        if (!$route) {
             $this->fail("Route with name '$routeName' does not exist");
         }
 
-        $absolute = ! is_null($route->domain());
+        $absolute = !is_null($route->domain());
         $url = $this->app['url']->route($routeName, $params, $absolute);
         $this->amOnPage($url);
     }
@@ -257,11 +339,11 @@ class Laravel5 extends Framework implements ActiveRecord, PartedModule
         $namespacedAction = $this->actionWithNamespace($action);
         $route = $this->app['routes']->getByAction($namespacedAction);
 
-        if (! $route) {
-            $this->fail("Action '$action' does not exists");
+        if (!$route) {
+            $this->fail("Action '$action' does not exist");
         }
 
-        $absolute = ! is_null($route->domain());
+        $absolute = !is_null($route->domain());
         $url = $this->app['url']->action($action, $params, $absolute);
         $this->amOnPage($url);
     }
@@ -276,7 +358,7 @@ class Laravel5 extends Framework implements ActiveRecord, PartedModule
     {
         $rootNamespace = $this->getRootControllerNamespace();
 
-        if ($rootNamespace && ! (strpos($action, '\\') === 0)) {
+        if ($rootNamespace && !(strpos($action, '\\') === 0)) {
             return $rootNamespace . '\\' . $action;
         } else {
             return trim($action, '\\');
@@ -310,7 +392,7 @@ class Laravel5 extends Framework implements ActiveRecord, PartedModule
      * @param $route
      * @param array $params
      */
-    public function seeCurrentRouteIs($route, $params = [])
+    public function seeCurrentRouteIs($route, $params = array())
     {
         $this->seeCurrentUrlEquals($this->app['url']->route($route, $params, false));
     }
@@ -327,7 +409,7 @@ class Laravel5 extends Framework implements ActiveRecord, PartedModule
      * @param $action
      * @param array $params
      */
-    public function seeCurrentActionIs($action, $params = [])
+    public function seeCurrentActionIs($action, $params = array())
     {
         $this->seeCurrentUrlEquals($this->app['url']->action($action, $params, false));
     }
@@ -343,13 +425,14 @@ class Laravel5 extends Framework implements ActiveRecord, PartedModule
      * ```
      *
      * @param  string|array $key
-     * @param  mixed $value
+     * @param  mixed|null $value
      * @return void
      */
     public function seeInSession($key, $value = null)
     {
         if (is_array($key)) {
             $this->seeSessionHasValues($key);
+
             return;
         }
 
@@ -399,6 +482,23 @@ class Laravel5 extends Framework implements ActiveRecord, PartedModule
     {
         $viewErrorBag = $this->app->make('view')->shared('errors');
         $this->assertTrue(count($viewErrorBag) > 0);
+    }
+
+    /**
+     * Assert that there are no form errors bound to the View.
+     *
+     * ``` php
+     * <?php
+     * $I->dontSeeFormErrors();
+     * ?>
+     * ```
+     *
+     * @return bool
+     */
+    public function dontSeeFormErrors()
+    {
+        $viewErrorBag = $this->app->make('view')->shared('errors');
+        $this->assertTrue(count($viewErrorBag) == 0);
     }
 
     /**
@@ -452,8 +552,21 @@ class Laravel5 extends Framework implements ActiveRecord, PartedModule
      * Takes either an object that implements the User interface or
      * an array of credentials.
      *
+     * Example of Usage
+     *
+     * ``` php
+     * <?php
+     * // provide array of credentials
+     * $I->amLoggedAs(['username' => 'jane@example.com', 'password' => 'password']);
+     *
+     * // provide User object
+     * $I->amLoggesAs( new User );
+     *
+     * // can be verified with $I->seeAuthentication();
+     * ?>
+     * ```
      * @param  \Illuminate\Contracts\Auth\User|array $user
-     * @param  string $driver
+     * @param  string|null $driver 'eloquent', 'database', or custom driver
      * @return void
      */
     public function amLoggedAs($user, $driver = null)
@@ -531,13 +644,13 @@ class Laravel5 extends Framework implements ActiveRecord, PartedModule
      * @return mixed
      * @part orm
      */
-    public function haveRecord($tableName, $attributes = array())
+    public function haveRecord($tableName, $attributes = [])
     {
-        $id = $this->app['db']->table($tableName)->insertGetId($attributes);
-        if (!$id) {
-            $this->fail("Couldn't insert record into table $tableName");
+        try {
+            return $this->app['db']->table($tableName)->insertGetId($attributes);
+        } catch (\Exception $e) {
+            $this->fail("Couldn't insert record into table $tableName: " . $e->getMessage());
         }
-        return $id;
     }
 
     /**
@@ -553,7 +666,7 @@ class Laravel5 extends Framework implements ActiveRecord, PartedModule
      * @param array $attributes
      * @part orm
      */
-    public function seeRecord($tableName, $attributes = array())
+    public function seeRecord($tableName, $attributes = [])
     {
         $record = $this->findRecord($tableName, $attributes);
         if (!$record) {
@@ -573,8 +686,9 @@ class Laravel5 extends Framework implements ActiveRecord, PartedModule
      *
      * @param $tableName
      * @param array $attributes
+     * @part orm
      */
-    public function dontSeeRecord($tableName, $attributes = array())
+    public function dontSeeRecord($tableName, $attributes = [])
     {
         $record = $this->findRecord($tableName, $attributes);
         $this->debugSection($tableName, json_encode($record));
@@ -597,7 +711,7 @@ class Laravel5 extends Framework implements ActiveRecord, PartedModule
      * @return mixed
      * @part orm
      */
-    public function grabRecord($tableName, $attributes = array())
+    public function grabRecord($tableName, $attributes = [])
     {
         return $this->findRecord($tableName, $attributes);
     }
@@ -606,14 +720,14 @@ class Laravel5 extends Framework implements ActiveRecord, PartedModule
      * @param $tableName
      * @param array $attributes
      * @return mixed
-     * @part orm
      */
-    protected function findRecord($tableName, $attributes = array())
+    protected function findRecord($tableName, $attributes = [])
     {
         $query = $this->app['db']->table($tableName);
         foreach ($attributes as $key => $value) {
             $query->where($key, $value);
         }
+
         return $query->first();
     }
 

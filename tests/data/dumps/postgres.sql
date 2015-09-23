@@ -294,12 +294,41 @@ BEGIN
 END;
   $$;
 
+-- Test $$ opening quote when is not at the beginning of the line.
+CREATE OR REPLACE FUNCTION upd_timestamp() RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    NEW.created_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+  $$;
+
 INSERT INTO users (name, email) VALUES ('This should work as well', 'user2@example.org');
 --
 -- end test for triggers with $$ syntax
 --
 
---
+CREATE TABLE "composite_pk" (
+    "group_id" INTEGER NOT NULL,
+    "id" INTEGER NOT NULL,
+    "status" VARCHAR NOT NULL,
+    PRIMARY KEY ("group_id", "id")
+);
+
+CREATE TABLE "no_pk" (
+    "status" VARCHAR NOT NULL
+);
+
+CREATE TABLE "order" (
+    "id" INTEGER NOT NULL PRIMARY KEY,
+    "name" VARCHAR NOT NULL,
+    "status" VARCHAR NOT NULL
+);
+
+insert  into "order"("id","name","status") values (1,'main', 'open');
+
+-- --
 -- PostgreSQL database dump complete
 --
 

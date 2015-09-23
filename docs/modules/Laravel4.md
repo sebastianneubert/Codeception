@@ -1,6 +1,4 @@
-# Laravel4 Module
 
-**For additional reference, please review the [source](https://github.com/Codeception/Codeception/tree/2.0/src/Codeception/Module/Laravel4.php)**
 
 
 
@@ -21,7 +19,7 @@ The original author of this module is Davert.
 ## Status
 
 * Maintainer: **Jan-Henk Gerritsen**
-* Stability: **dev**
+* Stability: **stable**
 * Contact: janhenkgerritsen@gmail.com
 
 ## Config
@@ -38,6 +36,50 @@ The original author of this module is Davert.
 * app - `Illuminate\Foundation\Application` instance
 * client - `BrowserKit` client
 
+## Parts
+
+* ORM - include only haveRecord/grabRecord/seeRecord/dontSeeRecord actions
+
+
+
+### _findElements
+
+*hidden API method, expected to be used from Helper classes*
+ 
+Locates element using available Codeception locator types:
+
+* XPath
+* CSS
+* Strict Locator
+
+Use it in Helpers or GroupObject or Extension classes:
+
+```php
+<?php
+$els = $this->getModule('Laravel4')->_findElements('.items');
+$els = $this->getModule('Laravel4')->_findElements(['name' => 'username']);
+
+$editLinks = $this->getModule('Laravel4')->_findElements(['link' => 'Edit']);
+// now you can iterate over $editLinks and check that all them have valid hrefs
+```
+
+WebDriver module returns `Facebook\WebDriver\Remote\RemoteWebElement` instances
+PhpBrowser and Framework modules return `Symfony\Component\DomCrawler\Crawler` instances
+
+ * `param` $locator
+ * `return` array of interactive elements
+
+
+### _savePageSource
+
+*hidden API method, expected to be used from Helper classes*
+ 
+Saves page source of to a file
+
+```php
+$this->getModule('Laravel4')->_savePageSource(codecept_output_dir().'page.html');
+```
+ * `param` $filename
 
 
 ### amHttpAuthenticated
@@ -56,7 +98,7 @@ Takes either `UserInterface` instance or array of credentials.
  * `param`  \Illuminate\Auth\UserInterface|array $user
  * `param`  string $driver
 @return void
-@part framework
+* Part: ** framework**
 
 
 ### amOnAction
@@ -125,7 +167,7 @@ Calls an Artisan command and returns output as a string
  * `param string` $command       The name of the command as displayed in the artisan command list
  * `param array`  $parameters    An associative array of command arguments
 
-@return string
+ * `return` string
 
 
 ### checkOption
@@ -145,7 +187,7 @@ $I->checkOption('#agree');
  
 Make sure the Laravel start file exists.
 
- ModuleConfig
+
 
 
 ### click
@@ -402,7 +444,7 @@ $I->dontSeeRecord('users', array('name' => 'davert'));
  * `param` $tableName
  * `param array` $attributes
 @part orm
-@part framework
+* Part: ** framework**
 
 
 ### fillField
@@ -424,7 +466,7 @@ $I->fillField(['name' => 'email'], 'jon@mail.com');
  
 Provides access the Laravel application object.
 
-@return \Illuminate\Foundation\Application
+ * `return` \Illuminate\Foundation\Application
 
 
 ### grabAttributeFrom
@@ -488,7 +530,7 @@ $category = $I->grabRecord('users', array('name' => 'davert'));
  * `param` $tableName
  * `param array` $attributes
 @part ORM
-@part framework
+* Part: ** framework**
 
 
 ### grabService
@@ -513,7 +555,7 @@ $service = $I->grabService('foo');
 ```
 
  * `param`  string $class
-@part framework
+* Part: ** framework**
 
 
 ### grabTextFrom
@@ -537,7 +579,7 @@ $value = $I->grabTextFrom('~<input value=(.*?)]~sgi'); // match with a regex
  
  * `param` $field
 
-@return array|mixed|null|string
+ * `return` array|mixed|null|string
 
 
 ### haveDisabledFilters
@@ -563,13 +605,13 @@ $user_id = $I->haveRecord('users', array('name' => 'Davert'));
  * `param` $tableName
  * `param array` $attributes
 @part orm
-@part framework
+* Part: ** framework**
 
 
 ### logout
  
 Logs user out
-@part framework
+* Part: ** framework**
 
 
 ### resetCookie
@@ -602,7 +644,7 @@ $I->see('Sign Up','//body/h1'); // with XPath
 ### seeAuthentication
  
 Checks that user is authenticated
-@part framework
+* Part: ** framework**
 
 
 ### seeCheckboxIsChecked
@@ -760,7 +802,7 @@ $I->seeFormHasErrors();
 ?>
 ```
 
-@return bool
+ * `return` bool
 
 
 ### seeInCurrentUrl
@@ -875,7 +917,7 @@ $I->seeInSession('key', 'value');
 
  * `param`  string|array $key
  * `param`  mixed $value
-@return void
+ * `return` void
 
 
 ### seeInTitle
@@ -957,7 +999,7 @@ $I->seeRecord('users', array('name' => 'davert'));
  * `param` $tableName
  * `param array` $attributes
 @part orm
-@part framework
+* Part: ** framework**
 
 
 ### seeResponseCodeIs
@@ -1014,7 +1056,7 @@ $I->seeSessionHasValues(['key1' => 'value1', 'key2' => 'value2']);
 ```
 
  * `param`  array $bindings
-@return void
+ * `return` void
 
 
 ### selectOption
@@ -1113,15 +1155,13 @@ $I->setCookie('PHPSESSID', 'el4ukv0kqbvoirg7nkp4dncpk3');
  * `param` $name
  * `param` $val
  * `param array` $params
- * `internal param` $cookie
- * `internal param` $value
 
 
 
 ### submitForm
  
-Submits the given form on the page, optionally with the given form values.
-Give the form fields values as an array.
+Submits the given form on the page, optionally with the given form
+values.  Give the form fields values as an array.
 
 Skipped fields will be filled by their values from the page.
 You don't need to click the 'Submit' button afterwards.
@@ -1136,9 +1176,15 @@ Examples:
 
 ``` php
 <?php
-$I->submitForm('#login', array('login' => 'davert', 'password' => '123456'));
+$I->submitForm('#login', [
+    'login' => 'davert',
+    'password' => '123456'
+]);
 // or
-$I->submitForm('#login', array('login' => 'davert', 'password' => '123456'), 'submitButtonName');
+$I->submitForm('#login', [
+    'login' => 'davert',
+    'password' => '123456'
+], 'submitButtonName');
 
 ```
 
@@ -1146,10 +1192,17 @@ For example, given this sample "Sign Up" form:
 
 ``` html
 <form action="/sign_up">
-    Login: <input type="text" name="user[login]" /><br/>
-    Password: <input type="password" name="user[password]" /><br/>
-    Do you agree to out terms? <input type="checkbox" name="user[agree]" /><br/>
-    Select pricing plan <select name="plan"><option value="1">Free</option><option value="2" selected="selected">Paid</option></select>
+    Login:
+    <input type="text" name="user[login]" /><br/>
+    Password:
+    <input type="password" name="user[password]" /><br/>
+    Do you agree to our terms?
+    <input type="checkbox" name="user[agree]" /><br/>
+    Select pricing plan:
+    <select name="plan">
+        <option value="1">Free</option>
+        <option value="2" selected="selected">Paid</option>
+    </select>
     <input type="submit" name="submitButton" value="Submit" />
 </form>
 ```
@@ -1158,17 +1211,36 @@ You could write the following to submit it:
 
 ``` php
 <?php
-$I->submitForm('#userForm', array('user' => array('login' => 'Davert', 'password' => '123456', 'agree' => true)), 'submitButton');
-
+$I->submitForm(
+    '#userForm',
+    [
+        'user' => [
+            'login' => 'Davert',
+            'password' => '123456',
+            'agree' => true
+        ]
+    ],
+    'submitButton'
+);
 ```
-Note that "2" will be the submitted value for the "plan" field, as it is the selected option.
+Note that "2" will be the submitted value for the "plan" field, as it is
+the selected option.
 
-You can also emulate a JavaScript submission by not specifying any buttons in the third parameter to submitForm.
+You can also emulate a JavaScript submission by not specifying any
+buttons in the third parameter to submitForm.
 
 ```php
 <?php
-$I->submitForm('#userForm', array('user' => array('login' => 'Davert', 'password' => '123456', 'agree' => true)));
-
+$I->submitForm(
+    '#userForm',
+    [
+        'user' => [
+            'login' => 'Davert',
+            'password' => '123456',
+            'agree' => true
+        ]
+    ]
+);
 ```
 
 Pair this with seeInFormFields for quick testing magic.
@@ -1213,8 +1285,31 @@ $I->submitForm('#my-form', [
 ?>
 ```
 
-Mixing string and boolean values for a checkbox's value is not
-supported and may produce unexpected results.
+Mixing string and boolean values for a checkbox's value is not supported
+and may produce unexpected results.
+
+Field names ending in "[]" must be passed without the trailing square 
+bracket characters, and must contain an array for its value.  This allows
+submitting multiple values with the same name, consider:
+
+```php
+$I->submitForm('#my-form', [
+    'field[]' => 'value',
+    'field[]' => 'another value', // 'field[]' is already a defined key
+]);
+```
+
+The solution is to pass an array value:
+
+```php
+// this way both values are submitted
+$I->submitForm('#my-form', [
+    'field' => [
+        'value',
+        'another value',
+    ]
+]);
+```
 
  * `param` $selector
  * `param` $params
@@ -1233,4 +1328,4 @@ $I->uncheckOption('#notify');
 
  * `param` $option
 
-<p>&nbsp;</p><div class="alert alert-warning">Module reference is taken from the source code. <a href="https://github.com/Codeception/Codeception/tree/2.0/src/Codeception/Module/Laravel4.php">Help us to improve documentation. Edit module reference</a></div>
+<p>&nbsp;</p><div class="alert alert-warning">Module reference is taken from the source code. <a href="https://github.com/Codeception/Codeception/tree/2.1/src/Codeception/Module/Laravel4.php">Help us to improve documentation. Edit module reference</a></div>

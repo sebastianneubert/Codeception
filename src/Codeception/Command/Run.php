@@ -1,5 +1,4 @@
 <?php
-
 namespace Codeception\Command;
 
 use Codeception\Codecept;
@@ -78,34 +77,32 @@ class Run extends Command
      */
     protected function configure()
     {
-        $this->setDefinition(
-             array(
-                 new InputArgument('suite', InputArgument::OPTIONAL, 'suite to be tested'),
-                 new InputArgument('test', InputArgument::OPTIONAL, 'test to be run'),
-                 new InputOption('config', 'c', InputOption::VALUE_REQUIRED, 'Use custom path for config'),
-                 new InputOption('report', '', InputOption::VALUE_NONE, 'Show output in compact style'),
-                 new InputOption('html', '', InputOption::VALUE_OPTIONAL, 'Generate html with results', 'report.html'),
-                 new InputOption('xml', '', InputOption::VALUE_OPTIONAL, 'Generate JUnit XML Log', 'report.xml'),
-                 new InputOption('tap', '', InputOption::VALUE_OPTIONAL, 'Generate Tap Log', 'report.tap.log'),
-                 new InputOption('json', '', InputOption::VALUE_OPTIONAL, 'Generate Json Log', 'report.json'),
-                 new InputOption('colors', '', InputOption::VALUE_NONE, 'Use colors in output'),
-                 new InputOption('no-colors', '', InputOption::VALUE_NONE, 'Force no colors in output (useful to override config file)'),
-                 new InputOption('silent', '', InputOption::VALUE_NONE, 'Only outputs suite names and final results'),
-                 new InputOption('steps', '', InputOption::VALUE_NONE, 'Show steps in output'),
-                 new InputOption('debug', 'd', InputOption::VALUE_NONE, 'Show debug and scenario output'),
-                 new InputOption('coverage', '', InputOption::VALUE_OPTIONAL, 'Run with code coverage', 'coverage.serialized'),
-                 new InputOption('coverage-html', '', InputOption::VALUE_OPTIONAL, 'Generate CodeCoverage HTML report in path', 'coverage'),
-                 new InputOption('coverage-xml', '', InputOption::VALUE_OPTIONAL, 'Generate CodeCoverage XML report in file', 'coverage.xml'),
-                 new InputOption('coverage-text', '', InputOption::VALUE_OPTIONAL, 'Generate CodeCoverage text report in file', 'coverage.txt'),
-                 new InputOption('no-exit', '', InputOption::VALUE_NONE, 'Don\'t finish with exit code'),
-                 new InputOption('group', 'g', InputOption::VALUE_IS_ARRAY | InputOption::VALUE_REQUIRED, 'Groups of tests to be executed'),
-                 new InputOption('skip', 's', InputOption::VALUE_IS_ARRAY | InputOption::VALUE_REQUIRED, 'Skip selected suites'),
-                 new InputOption('skip-group', 'sg', InputOption::VALUE_IS_ARRAY | InputOption::VALUE_REQUIRED, 'Skip selected groups'),
-                 new InputOption('env', '', InputOption::VALUE_IS_ARRAY | InputOption::VALUE_REQUIRED, 'Run tests in selected environments.'),
-                 new InputOption('fail-fast', 'f', InputOption::VALUE_NONE, 'Stop after first failure'),
-                 new InputOption('no-rebuild', '', InputOption::VALUE_NONE, 'Do not rebuild actor classes on start'),
-             )
-        );
+        $this->setDefinition([
+            new InputArgument('suite', InputArgument::OPTIONAL, 'suite to be tested'),
+            new InputArgument('test', InputArgument::OPTIONAL, 'test to be run'),
+            new InputOption('config', 'c', InputOption::VALUE_REQUIRED, 'Use custom path for config'),
+            new InputOption('report', '', InputOption::VALUE_NONE, 'Show output in compact style'),
+            new InputOption('html', '', InputOption::VALUE_OPTIONAL, 'Generate html with results', 'report.html'),
+            new InputOption('xml', '', InputOption::VALUE_OPTIONAL, 'Generate JUnit XML Log', 'report.xml'),
+            new InputOption('tap', '', InputOption::VALUE_OPTIONAL, 'Generate Tap Log', 'report.tap.log'),
+            new InputOption('json', '', InputOption::VALUE_OPTIONAL, 'Generate Json Log', 'report.json'),
+            new InputOption('colors', '', InputOption::VALUE_NONE, 'Use colors in output'),
+            new InputOption('no-colors', '', InputOption::VALUE_NONE, 'Force no colors in output (useful to override config file)'),
+            new InputOption('silent', '', InputOption::VALUE_NONE, 'Only outputs suite names and final results'),
+            new InputOption('steps', '', InputOption::VALUE_NONE, 'Show steps in output'),
+            new InputOption('debug', 'd', InputOption::VALUE_NONE, 'Show debug and scenario output'),
+            new InputOption('coverage', '', InputOption::VALUE_OPTIONAL, 'Run with code coverage', 'coverage.serialized'),
+            new InputOption('coverage-html', '', InputOption::VALUE_OPTIONAL, 'Generate CodeCoverage HTML report in path', 'coverage'),
+            new InputOption('coverage-xml', '', InputOption::VALUE_OPTIONAL, 'Generate CodeCoverage XML report in file', 'coverage.xml'),
+            new InputOption('coverage-text', '', InputOption::VALUE_OPTIONAL, 'Generate CodeCoverage text report in file', 'coverage.txt'),
+            new InputOption('no-exit', '', InputOption::VALUE_NONE, 'Don\'t finish with exit code'),
+            new InputOption('group', 'g', InputOption::VALUE_IS_ARRAY | InputOption::VALUE_REQUIRED, 'Groups of tests to be executed'),
+            new InputOption('skip', 's', InputOption::VALUE_IS_ARRAY | InputOption::VALUE_REQUIRED, 'Skip selected suites'),
+            new InputOption('skip-group', 'sg', InputOption::VALUE_IS_ARRAY | InputOption::VALUE_REQUIRED, 'Skip selected groups'),
+            new InputOption('env', '', InputOption::VALUE_IS_ARRAY | InputOption::VALUE_REQUIRED, 'Run tests in selected environments.'),
+            new InputOption('fail-fast', 'f', InputOption::VALUE_NONE, 'Stop after first failure'),
+            new InputOption('no-rebuild', '', InputOption::VALUE_NONE, 'Do not rebuild actor classes on start'),
+        ]);
 
         parent::configure();
     }
@@ -191,7 +188,7 @@ class Run extends Command
             $suites = $suite ? explode(',', $suite) : Configuration::suites();
             $this->executed = $this->runSuites($suites, $this->options['skip']);
 
-            if (!empty($config['include'])) {
+            if (!empty($config['include']) and !$suite) {
                 $current_dir = Configuration::projectDir();
                 $suites += $config['include'];
                 $this->runIncludedSuites($config['include'], $current_dir);
@@ -222,15 +219,16 @@ class Run extends Command
     protected function runIncludedSuites($suites, $parent_dir)
     {
         foreach ($suites as $relativePath) {
-            $current_dir = $parent_dir . DIRECTORY_SEPARATOR . $relativePath;
+            $current_dir = rtrim($parent_dir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $relativePath;
             $config = Configuration::config($current_dir);
             $suites = Configuration::suites();
-            $this->executed += $this->runSuites($suites, $this->options['skip']);
 
             $namespace = $this->currentNamespace();
             $this->output->writeln(
                 "\n<fg=white;bg=magenta>\n[$namespace]: tests from $current_dir\n</fg=white;bg=magenta>"
             );
+
+            $this->executed += $this->runSuites($suites, $this->options['skip']);
             if (!empty($config['include'])) {
                 $this->runIncludedSuites($config['include'], $current_dir);
             }
@@ -244,7 +242,7 @@ class Run extends Command
         if (!$config['namespace']) {
             throw new \RuntimeException(
                 "Can't include into runner suite without a namespace;\n"
-                . "Use 'refactor:add-namespace' command to fix it'"
+                . "Please add `namespace` section into included codeception.yml file"
             );
         }
 
@@ -297,7 +295,7 @@ class Run extends Command
         $tokens = explode(' ', $request);
         foreach ($tokens as $token) {
             $token = preg_replace('~=.*~', '', $token); // strip = from options
-            if (strpos($token, '--') === 0) {
+            if (strpos($token, '--') === 0 && $token !== '--') {
                 $options[] = substr($token, 2);
                 continue;
             }
@@ -329,10 +327,10 @@ class Run extends Command
     {
         if (!extension_loaded('curl')) {
             throw new \Exception(
-                "Codeception requires CURL extension installed to make tests run\n" .
-                "If you are not sure, how to install CURL, please refer to StackOverflow\n\n" .
-                "Notice: PHP for Apache/Nginx and CLI can have different php.ini files.\n" .
-                "Please make sure that your PHP you run from console has CURL enabled."
+                "Codeception requires CURL extension installed to make tests run\n"
+                . "If you are not sure, how to install CURL, please refer to StackOverflow\n\n"
+                . "Notice: PHP for Apache/Nginx and CLI can have different php.ini files.\n"
+                . "Please make sure that your PHP you run from console has CURL enabled."
             );
         }
     }

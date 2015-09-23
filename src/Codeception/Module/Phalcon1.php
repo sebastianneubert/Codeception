@@ -1,19 +1,15 @@
 <?php
-
 namespace Codeception\Module;
 
-use Codeception\Exception\Module;
+use Codeception\Exception\ModuleException;
 use PDOException;
-use RuntimeException;
 use Phalcon\Di;
 use Phalcon\DiInterface;
 use Phalcon\Di\Injectable;
 use Phalcon\Mvc\Model as PhalconModel;
 use Codeception\TestCase;
 use Codeception\Configuration;
-use Codeception\Lib\Connector\Phalcon1 as Phalcon1Connector;
-use Codeception\Exception\ModuleConfig;
-use Codeception\Step;
+use Codeception\Lib\Connector\Phalcon as PhalconConnector;
 use Codeception\Lib\Framework;
 use Codeception\Lib\Interfaces\ActiveRecord;
 use Codeception\Lib\Interfaces\PartedModule;
@@ -22,17 +18,33 @@ use Codeception\Lib\Connector\PhalconMemorySession;
 
 /**
  * This module provides integration with [Phalcon framework](http://www.phalconphp.com/) (1.x).
+ * Please try it and leave your feedback.
  *
  * ## Demo Project
  *
  * <https://github.com/phalcon/forum>
  *
+ * ## Status
+ *
+ * * Maintainer: **Serghei Iakovlev**
+ * * Stability: **dev**
+ * * Contact: sadhooklay@gmail.com
+ *
+ * ## Example
+ *
+ *     modules:
+ *         enabled:
+ *             - Phalcon1:
+ *                 bootstrap: 'app/config/bootstrap.php'
+ *                 cleanup: true
+ *                 savepoints: true
+ *
+ * ## Config
+ *
  * The following configurations are required for this module:
- * <ul>
- * <li>boostrap - the path of the application bootstrap file</li>
- * <li>cleanup - cleanup database (using transactions)</li>
- * <li>savepoints - use savepoints to emulate nested transactions</li>
- * </ul>
+ * * boostrap: the path of the application bootstrap file</li>
+ * * cleanup: cleanup database (using transactions)</li>
+ * * savepoints: use savepoints to emulate nested transactions</li>
  *
  * The application bootstrap file must return Application object but not call its handle() method.
  *
@@ -48,26 +60,15 @@ use Codeception\Lib\Connector\PhalconMemorySession;
  * ?>
  * ```
  *
- * You can use this module by setting params in your functional.suite.yml:
- * <pre>
- * class_name: FunctionalTester
- * modules:
- *     enabled:
- *         - Phalcon1:
- *             bootstrap: 'app/config/bootstrap.php'
- *             cleanup: true
- *             savepoints: true
- * </pre>
+ * ## API
  *
+ * * di - `Phalcon\Di\Injectable` instance
+ * * client - `BrowserKit` client
  *
  * ## Parts
  *
  * * ORM - include only haveRecord/grabRecord/seeRecord/dontSeeRecord actions
  *
- * ## Status
- *
- * Maintainer: **cujo**
- * Stability: **beta**
  */
 class Phalcon1 extends Framework implements ActiveRecord, PartedModule
 {
@@ -89,54 +90,53 @@ class Phalcon1 extends Framework implements ActiveRecord, PartedModule
     public $di = null;
 
     /**
-     * Phalcon1 Connector
-     * @var Phalcon1Connector
+     * Phalcon Connector
+     * @var PhalconConnector
      */
     public $client;
 
     /**
      * HOOK: used after configuration is loaded
      *
-     * @throws ModuleConfig
+     * @throws ModuleConfigException
      */
     public function _initialize()
     {
-        if (!file_exists(\Codeception\Configuration::projectDir() . $this->config['bootstrap'])) {
+        if (!file_exists($this->bootstrapFile = Configuration::projectDir() . $this->config['bootstrap'])) {
             throw new ModuleConfigException(
                 __CLASS__,
-                "Bootstrap file does not exist in " . $this->config['bootstrap'] . "\n" .
-                "Please create the bootstrap file that returns Application object\n" .
-                "And specify path to it with 'bootstrap' config\n\n" .
-                "Sample bootstrap: \n\n<?php\n" .
-                '$config = include __DIR__ . "/config.php";' . "\n" .
-                'include __DIR__ . "/loader.php";' . "\n" .
-                '$di = new \Phalcon\DI\FactoryDefault();' . "\n" .
-                'include __DIR__ . "/services.php";' . "\n" .
-                'return new \Phalcon\Mvc\Application($di);'
+                "Bootstrap file does not exist in " . $this->config['bootstrap'] . "\n"
+                . "Please create the bootstrap file that returns Application object\n"
+                . "And specify path to it with 'bootstrap' config\n\n"
+                . "Sample bootstrap: \n\n<?php\n"
+                . '$config = include __DIR__ . "/config.php";' . "\n"
+                . 'include __DIR__ . "/loader.php";' . "\n"
+                . '$di = new \Phalcon\DI\FactoryDefault();' . "\n"
+                . 'include __DIR__ . "/services.php";' . "\n"
+                . 'return new \Phalcon\Mvc\Application($di);'
             );
         }
 
-        $this->client = new Phalcon1Connector();
+        $this->client = new PhalconConnector();
     }
 
     /**
      * HOOK: before scenario
      *
      * @param TestCase $test
-     * @throws \RuntimeException
-     * @throws Module
+     * @throws ModuleException
      */
     public function _before(TestCase $test)
     {
         $application = require $this->bootstrapFile;
         if (!$application instanceof Injectable) {
-            throw new RuntimeException('Bootstrap must return \Phalcon\Di\Injectable object');
+            throw new ModuleException(__CLASS__, 'Bootstrap must return \Phalcon\Di\Injectable object');
         }
 
         $this->di = $application->getDI();
 
         if (!$this->di instanceof DiInterface) {
-            throw new Module(__CLASS__, 'Dependency injector container must implement DiInterface');
+            throw new ModuleException(__CLASS__, 'Dependency injector container must implement DiInterface');
         }
 
         Di::reset();
@@ -188,12 +188,13 @@ class Phalcon1 extends Framework implements ActiveRecord, PartedModule
                 $level = $this->di['db']->getTransactionLevel();
                 try {
                     $this->di['db']->rollback(true);
-                } catch (\PDOException $e) {
+                } catch (PDOException $e) {
                 }
                 if ($level == $this->di['db']->getTransactionLevel()) {
                     break;
                 }
             }
+            $this->di['db']->close();
         }
         $this->di = null;
         Di::reset();
@@ -282,6 +283,7 @@ class Phalcon1 extends Framework implements ActiveRecord, PartedModule
      * ``` php
      * <?php
      * $I->seeRecord('Phosphorum\Models\Categories', ['name' => 'Testing']);
+     * ?>
      * ```
      *
      * @param string $model Model name
@@ -302,6 +304,7 @@ class Phalcon1 extends Framework implements ActiveRecord, PartedModule
      * ``` php
      * <?php
      * $I->dontSeeRecord('Phosphorum\Models\Categories', ['name' => 'Testing']);
+     * ?>
      * ```
      *
      * @param string $model Model name
@@ -322,6 +325,7 @@ class Phalcon1 extends Framework implements ActiveRecord, PartedModule
      * ``` php
      * <?php
      * $category = $I->grabRecord('Phosphorum\Models\Categories', ['name' => 'Testing']);
+     * ?>
      * ```
      *
      * @param string $model Model name
@@ -332,6 +336,52 @@ class Phalcon1 extends Framework implements ActiveRecord, PartedModule
     public function grabRecord($model, $attributes = [])
     {
         return $this->findRecord($model, $attributes);
+    }
+
+    /**
+     * Resolves the service based on its configuration from Phalcon's DI container
+     * Recommended to use for unit testing.
+     *
+     * @param string $service    Service name
+     * @param array  $parameters Parameters [Optional]
+     *
+     * @return mixed
+     */
+    public function grabServiceFromDi($service, array $parameters = [])
+    {
+        if (!$this->di->has($service)) {
+            $this->fail("Service $service is not available in container");
+        }
+
+        return $this->di->get($service, $parameters);
+    }
+
+    /**
+     * Registers a service in the services container and resolve it. This record will be erased after the test.
+     * Recommended to use for unit testing.
+     *
+     * ``` php
+     * <?php
+     * $filter = $I->haveServiceInDi('filter', ['className' => '\Phalcon\Filter']);
+     * ?>
+     * ```
+     *
+     * @param string $name
+     * @param mixed $definition
+     * @param boolean $shared
+     *
+     * @return mixed|null
+     */
+    public function haveServiceInDi($name, $definition, $shared = false)
+    {
+        try {
+            $service = $this->di->set($name, $definition, $shared);
+            return $service->resolve();
+        } catch (\Exception $e) {
+            $this->fail($e->getMessage());
+
+            return null;
+        }
     }
 
     /**
@@ -349,9 +399,9 @@ class Phalcon1 extends Framework implements ActiveRecord, PartedModule
         foreach ($attributes as $key => $value) {
             $query[] = "$key = '$value'";
         }
-        $query = implode(' AND ', $query);
-        $this->debugSection('Query', $query);
-        return call_user_func_array([$model, 'findFirst'], [$query]);
+        $squery = implode(' AND ', $query);
+        $this->debugSection('Query', $squery);
+        return call_user_func_array([$model, 'findFirst'], [$squery]);
     }
 
     /**
@@ -360,17 +410,19 @@ class Phalcon1 extends Framework implements ActiveRecord, PartedModule
      * @param $model
      *
      * @return \Phalcon\Mvc\Model
-     * @throws \RuntimeException
+     * @throws ModuleException
      */
     protected function getModelRecord($model)
     {
         if (!class_exists($model)) {
-            throw new RuntimeException("Model $model does not exist");
+            throw new ModuleException(__CLASS__, "Model $model does not exist");
         }
+
         $record = new $model;
         if (!$record instanceof PhalconModel) {
-            throw new RuntimeException(sprintf('Model %s is not instance of \Phalcon\Mvc\Model', $model));
+            throw new ModuleException(__CLASS__, "Model $model is not instance of \\Phalcon\\Mvc\\Model");
         }
+
         return $record;
     }
 
@@ -400,6 +452,5 @@ class Phalcon1 extends Framework implements ActiveRecord, PartedModule
             default:
                 return array_intersect_key(get_object_vars($model), array_flip($primaryKeys));
         }
-
     }
 }
