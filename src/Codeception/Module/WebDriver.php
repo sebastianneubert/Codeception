@@ -24,6 +24,7 @@ use Codeception\Util\Locator;
 use Codeception\Util\Uri;
 use Facebook\WebDriver\Exception\InvalidSelectorException;
 use Facebook\WebDriver\Exception\NoSuchElementException;
+use Facebook\WebDriver\Exception\UnknownServerException;
 use Facebook\WebDriver\Exception\WebDriverCurlException;
 use Facebook\WebDriver\Interactions\WebDriverActions;
 use Facebook\WebDriver\Remote\LocalFileDetector;
@@ -92,6 +93,21 @@ use Symfony\Component\DomCrawler\Crawler;
  *              capabilities:
  *                  unexpectedAlertBehaviour: 'accept'
  *                  firefox_profile: '/Users/paul/Library/Application Support/Firefox/Profiles/codeception-profile.zip.b64'
+ *
+ *
+ *
+ * ## SauceLabs.com Integration
+ *
+ * SauceLabs can run your WebDriver tests in the cloud, you can also create a tunnel
+ * enabling you to test locally hosted sites from their servers.
+ *
+ * 1. Create an account at [SauceLabs.com](http://SauceLabs.com) to get your username and access key
+ * 2. In the module configuration use the format `username`:`access_key`@ondemand.saucelabs.com' for `host`
+ * 3. Configure `platform` under `capabilities` to define the [Operating System](https://docs.saucelabs.com/reference/platforms-configurator/#/)
+ *
+ * [CodeCeption and SauceLabs example](https://github.com/Codeception/Codeception/issues/657#issuecomment-28122164)
+ *
+ *
  * ## Locating Elements
  *
  * Most methods in this module that operate on a DOM element (e.g. `click`) accept a locator as the first argument, which can be either a string or an array.
@@ -247,6 +263,39 @@ class WebDriver extends CodeceptionModule implements
         $this->_saveScreenshot(codecept_output_dir() . $filename . '.png');
         $this->_savePageSource(codecept_output_dir() . $filename . '.html');
         $this->debug("Screenshot and page source were saved into '_output' dir");
+
+        try {
+           // Dump out all available Selenium logs
+           foreach ($this->webDriver->manage()->getAvailableLogTypes() as $logType) {
+              $logEntries = $this->webDriver->manage()->getLog($logType);
+              $this->debugSection("Selenium {$logType} logs", $this->formatLogEntries($logEntries));
+           }
+        } catch (UnknownServerException $e) {
+           // This only happens with the IE driver, which doesn't support retrieving logs yet:
+           // https://github.com/SeleniumHQ/selenium/issues/468
+           $this->debug("Unable to retrieve Selenium logs");
+        }
+    }
+
+    /**
+     * Turns an array of log entries into a human-readable string.
+     * Each log entry is an array with the keys "timestamp", "level", and "message".
+     * See https://code.google.com/p/selenium/wiki/JsonWireProtocol#Log_Entry_JSON_Object
+     *
+     * @param array $logEntries
+     * @return string
+     */
+    protected function formatLogEntries(array $logEntries)
+    {
+       $formattedLogs = '';
+       foreach ($logEntries as $logEntry) {
+          // Timestamp is in milliseconds, but date() requires seconds. 
+          $time = date('H:i:s', $logEntry['timestamp'] / 1000) . 
+             // Append the milliseconds to the end of the time string
+             '.' . ($logEntry['timestamp'] % 1000);
+          $formattedLogs .= "{$time} {$logEntry['level']} - {$logEntry['message']}\n";
+       }
+       return $formattedLogs;
     }
 
     public function _afterSuite()
@@ -459,6 +508,16 @@ class WebDriver extends CodeceptionModule implements
         }
         $nodes = $this->matchVisible($selector);
         $this->assertNodesNotContain($text, $nodes, $selector);
+    }
+
+    public function seeInSource($raw)
+    {
+        $this->assertPageSourceContains($raw);
+    }
+
+    public function dontSeeInSource($raw)
+    {
+        $this->assertPageSourceNotContains($raw);
     }
 
     /**
@@ -2037,6 +2096,24 @@ class WebDriver extends CodeceptionModule implements
     {
         $this->assertThatItsNot(
             htmlspecialchars_decode($this->getVisibleText()),
+            new PageConstraint($needle, $this->_getCurrentUri()),
+            $message
+        );
+    }
+
+    protected function assertPageSourceContains($needle, $message = '')
+    {
+        $this->assertThat(
+            $this->webDriver->getPageSource(),
+            new PageConstraint($needle, $this->_getCurrentUri()),
+            $message
+        );
+    }
+
+    protected function assertPageSourceNotContains($needle, $message = '')
+    {
+        $this->assertThatItsNot(
+            $this->webDriver->getPageSource(),
             new PageConstraint($needle, $this->_getCurrentUri()),
             $message
         );

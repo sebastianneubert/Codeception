@@ -130,7 +130,7 @@ class Scenario
         foreach ($this->getSteps() as $step) {
             /** @var Step $step */
             if ($step->getName() !== 'Comment') {
-                $text .= 'I ' . $step->getHtml() . '<br/>';
+                $text .= $step->getHtml() . '<br/>';
             } else {
                 $text .= trim($step->getHumanizedArguments(), '"') . '<br/>';
             }
@@ -165,7 +165,7 @@ class Scenario
     public function current($key)
     {
         if (!isset($this->currents[$key])) {
-            throw new TestRuntimeException("Current $key is not set in this scenario");
+            return null;
         }
         return $this->currents[$key];
     }

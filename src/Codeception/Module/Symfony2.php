@@ -7,6 +7,7 @@ use Codeception\Lib\Framework;
 use Codeception\Exception\ModuleRequireException;
 use Codeception\Lib\Connector\Symfony2 as Symfony2Connector;
 use Codeception\Lib\Interfaces\DoctrineProvider;
+use Codeception\Lib\Interfaces\SupportsDomainRouting;
 use Symfony\Component\Finder\Finder;
 
 /**
@@ -65,7 +66,7 @@ use Symfony\Component\Finder\Finder;
  * * container - dependency injection container instance
  *
  */
-class Symfony2 extends Framework implements DoctrineProvider
+class Symfony2 extends Framework implements DoctrineProvider, SupportsDomainRouting
 {
     /**
      * @var \Symfony\Component\HttpKernel\Kernel
@@ -108,7 +109,11 @@ class Symfony2 extends Framework implements DoctrineProvider
         }
         require_once $cache;
         $this->kernelClass = $this->getKernelClass();
-        ini_set('xdebug.max_nesting_level', 200); // Symfony may have very long nesting level
+        $maxNestingLevel = 200; // Symfony may have very long nesting level
+        $xdebugMaxLevelKey = 'xdebug.max_nesting_level';
+        if (ini_get($xdebugMaxLevelKey) < $maxNestingLevel) {
+            ini_set($xdebugMaxLevelKey, $maxNestingLevel);
+        }
     }
 
     public function _before(\Codeception\TestCase $test) 
@@ -278,9 +283,13 @@ class Symfony2 extends Framework implements DoctrineProvider
         return $profiler->loadProfileFromResponse($response);
     }
 
-    protected function debugResponse()
+    /**
+     * @param $url
+     */
+    protected function debugResponse($url)
     {
-        $this->debugSection('Page', $this->client->getHistory()->current()->getUri());
+        parent::debugResponse($url);
+
         if ($profile = $this->getProfiler()) {
             if ($profile->hasCollector('security')) {
                 if ($profile->getCollector('security')->isAuthenticated()) {
